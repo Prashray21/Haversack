@@ -6,4 +6,8 @@ export * from "./parse/load.js";
 export * from "./adapters/types.js";
 export * from "./adapters/registry.js";
 export * from "./adapters/header.js";
+export * from "./adapters/claude-code.js";
+export * from "./drift/manifest.js";
+export * from "./drift/detect.js";
+export * from "./secrets/scan.js";
 export * from "./checks/types.js";
