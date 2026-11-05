@@ -1,9 +1,22 @@
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { runSync } from "../src/commands/sync.js";
+import { GENERATED_HEADER_MARKER, MANIFEST_REL_PATH } from "@runtime/core";
 
-// The checked-in example project doubles as a living fixture: if it stops
-// parsing, this test fails.
+const BASE_YAML = `runtime: 1
+project: demo
+targets: [claude-code]
+rules:
+  - rules/coding.md
+`;
+
+const RULES_V1 = "Be terse.\n";
+const RULES_V2 = "Be terser.\n";
+
+// The committed example project doubles as a living fixture: if its generated
+// artifacts fall out of sync with project.yaml, this fails.
 const SAMPLE_DIR = path.resolve(import.meta.dirname, "../../../examples/sample-project");
 
 function capture() {
@@ -17,55 +30,268 @@ function capture() {
   };
 }
 
-describe("runtime sync (config loader)", () => {
-  it("prints a summary for the sample project and exits 0", async () => {
+function sync(cwd: string, io: ReturnType<typeof capture>, opts: Partial<Parameters<typeof runSync>[0]> = {}) {
+  return runSync({
+    cwd,
+    yes: true,
+    verify: false,
+    force: false,
+    ...io,
+    ...opts,
+  });
+}
+
+async function makeProject(files: Record<string, string>): Promise<string> {
+  const dir = path.join(tmpdir(), `runtime-sync-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  await mkdir(dir, { recursive: true });
+  for (const [rel, content] of Object.entries(files)) {
+    const abs = path.join(dir, rel);
+    await mkdir(path.dirname(abs), { recursive: true });
+    await writeFile(abs, content);
+  }
+  return dir;
+}
+
+let lastDir: string | undefined;
+afterEach(async () => {
+  if (lastDir) await rm(lastDir, { recursive: true, force: true });
+  lastDir = undefined;
+});
+
+async function project(files: Record<string, string>): Promise<string> {
+  lastDir = await makeProject(files);
+  return lastDir;
+}
+
+async function readText(root: string, rel: string): Promise<string> {
+  return readFile(path.join(root, rel), "utf8");
+}
+
+describe("runtime sync — writer", () => {
+  it("first sync writes the target file and a deterministic manifest", async () => {
+    const dir = await project({ "project.yaml": BASE_YAML, "rules/coding.md": RULES_V1 });
     const io = capture();
-    const code = await runSync({
-      cwd: SAMPLE_DIR,
-      yes: true,
-      verify: false,
-      force: false,
-      ...io,
-    });
+
+    const code = await sync(dir, io);
 
     expect(code).toBe(0);
-    expect(io.out.join("\n")).toContain("project: acme-storefront (runtime spec 1)");
-    expect(io.out.join("\n")).toContain("targets: claude-code, cursor, copilot");
-    expect(io.out.join("\n")).toContain("3 (2 static, 1 llm)");
+    expect(io.out.join("\n")).toContain(`new         CLAUDE.md`);
+    expect(io.out.join("\n")).toContain("wrote CLAUDE.md");
+    expect(io.out.join("\n")).toContain(`updated ${MANIFEST_REL_PATH}`);
+
+    const claude = await readText(dir, "CLAUDE.md");
+    expect(claude.startsWith(`<!-- ${GENERATED_HEADER_MARKER}`)).toBe(true);
+    expect(claude).toContain("# demo");
+    expect(claude).toContain("Be terse.");
+
+    const raw = await readText(dir, MANIFEST_REL_PATH);
+    expect(raw.endsWith("\n")).toBe(true);
+    const manifest = JSON.parse(raw) as { files: Record<string, { adapter: string; adapterVersion: number }> };
+    expect(manifest.files["CLAUDE.md"]?.adapter).toBe("claude-code");
+    expect(manifest.files["CLAUDE.md"]?.adapterVersion).toBe(1);
   });
 
-  it("surfaces the integrations warning (D7)", async () => {
+  it("second sync is a no-op", async () => {
+    const dir = await project({ "project.yaml": BASE_YAML, "rules/coding.md": RULES_V1 });
+    await sync(dir, capture());
+
     const io = capture();
-    await runSync({ cwd: SAMPLE_DIR, yes: true, verify: false, force: false, ...io });
-    expect(io.out.join("\n")).toContain("integrations are validated but not enforced");
+    const code = await sync(dir, io);
+
+    expect(code).toBe(0);
+    expect(io.out.join("\n")).toContain("everything in sync (1 file(s) managed)");
+    expect(io.out.join("\n")).not.toContain("wrote ");
   });
 
-  it("exits 2 with the position-mapped report on a bad config", async () => {
+  it("a changed rules file makes the target stale and gets rewritten", async () => {
+    const dir = await project({ "project.yaml": BASE_YAML, "rules/coding.md": RULES_V1 });
+    await sync(dir, capture());
+    await writeFile(path.join(dir, "rules/coding.md"), RULES_V2);
+
     const io = capture();
-    const code = await runSync({
-      cwd: path.resolve(import.meta.dirname, "./fixtures/bad-spec"),
-      yes: true,
-      verify: false,
-      force: false,
-      ...io,
+    const code = await sync(dir, io);
+
+    expect(code).toBe(0);
+    expect(io.out.join("\n")).toContain("stale       CLAUDE.md");
+    expect(await readText(dir, "CLAUDE.md")).toContain("Be terser.");
+  });
+
+  it("hand-edited generated files are skipped as drift unless --force", async () => {
+    const dir = await project({ "project.yaml": BASE_YAML, "rules/coding.md": RULES_V1 });
+    await sync(dir, capture());
+    await writeFile(path.join(dir, "CLAUDE.md"), "<!-- GENERATED BY RUNTIME — DO NOT EDIT. -->\nHAND EDIT\n");
+
+    const io = capture();
+    const code = await sync(dir, io);
+    expect(code).toBe(1);
+    expect(io.err.join("\n")).toContain("✘ drift: CLAUDE.md was hand-edited — skipped (use --force to overwrite)");
+    expect(io.out.join("\n")).toContain("nothing written — resolve the drift above or re-run with --force");
+    expect(await readText(dir, "CLAUDE.md")).toContain("HAND EDIT");
+
+    const ioForce = capture();
+    const codeForce = await sync(dir, ioForce, { force: true });
+    expect(codeForce).toBe(0);
+    expect(await readText(dir, "CLAUDE.md")).not.toContain("HAND EDIT");
+    expect(await readText(dir, "CLAUDE.md")).toContain("Be terse.");
+  });
+
+  it("untracked files at generated paths are never overwritten without --force", async () => {
+    const dir = await project({
+      "project.yaml": BASE_YAML,
+      "rules/coding.md": RULES_V1,
+      "CLAUDE.md": "# my own notes\n",
     });
 
-    expect(code).toBe(2);
-    expect(io.err.join("\n")).toContain("spec version 2");
-    expect(io.err.join("\n")).toContain("supports spec version 1");
+    const io = capture();
+    const code = await sync(dir, io);
+    expect(code).toBe(1);
+    expect(io.err.join("\n")).toContain("not managed by Runtime");
+    expect(await readText(dir, "CLAUDE.md")).toBe("# my own notes\n");
   });
 
-  it("exits 2 when there is no project.yaml", async () => {
+  it("--verify reports pending changes, writes nothing, exits 1", async () => {
+    const dir = await project({ "project.yaml": BASE_YAML, "rules/coding.md": RULES_V1 });
+
     const io = capture();
-    const code = await runSync({
-      cwd: path.resolve(import.meta.dirname, "./fixtures/empty"),
-      yes: true,
-      verify: false,
-      force: false,
-      ...io,
+    const code = await sync(dir, io, { verify: true });
+
+    expect(code).toBe(1);
+    expect(io.out.join("\n")).toContain("new         CLAUDE.md");
+    expect(io.out.join("\n")).toContain("verify: 1 file(s) would change — run 'runtime sync' to update");
+    await expect(readText(dir, "CLAUDE.md")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("--verify on a synced project is clean and exits 0", async () => {
+    const dir = await project({ "project.yaml": BASE_YAML, "rules/coding.md": RULES_V1 });
+    await sync(dir, capture());
+
+    const io = capture();
+    const code = await sync(dir, io, { verify: true });
+
+    expect(code).toBe(0);
+    expect(io.out.join("\n")).toContain("verify: all 1 generated file(s) in sync");
+  });
+
+  it("prompts before writing and aborts on anything but yes", async () => {
+    const dir = await project({ "project.yaml": BASE_YAML, "rules/coding.md": RULES_V1 });
+
+    const io = capture();
+    const code = await sync(dir, io, { yes: false, prompt: async () => "n" });
+    expect(code).toBe(1);
+    expect(io.out.join("\n")).toContain("aborted — nothing written");
+    await expect(readText(dir, "CLAUDE.md")).rejects.toMatchObject({ code: "ENOENT" });
+
+    const ioYes = capture();
+    const codeYes = await sync(dir, ioYes, { yes: false, prompt: async () => "y" });
+    expect(codeYes).toBe(0);
+    expect(ioYes.out.join("\n")).toContain("wrote CLAUDE.md");
+  });
+
+  it("secrets in sources block the sync with redacted findings (exit 3)", async () => {
+    const dir = await project({
+      "project.yaml": BASE_YAML,
+      "rules/coding.md": `password = supersecret12345\n`,
     });
 
+    const io = capture();
+    const code = await sync(dir, io);
+
+    expect(code).toBe(3);
+    const errText = io.err.join("\n");
+    expect(errText).toContain("✘ secret detected — nothing was written");
+    expect(errText).toContain("rules/coding.md:1");
+    expect(errText).toContain("generic-credential-assignment");
+    expect(errText).toContain("[REDACTED]");
+    expect(errText).not.toContain("supersecret12345");
+    await expect(readText(dir, "CLAUDE.md")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("the runtime:allow-secret line marker skips a line", async () => {
+    const dir = await project({
+      "project.yaml": BASE_YAML,
+      "rules/coding.md": "password = supersecret12345 # runtime:allow-secret\n",
+    });
+
+    const io = capture();
+    const code = await sync(dir, io);
+    expect(code).toBe(0);
+    expect(io.out.join("\n")).toContain("wrote CLAUDE.md");
+  });
+
+  it("the project secrets.ignore list skips matching lines", async () => {
+    const dir = await project({
+      "project.yaml": `${BASE_YAML}
+secrets:
+  ignore:
+    - pattern: 'supersecret\\d+'
+      reason: documented example value
+`,
+      "rules/coding.md": "password = supersecret12345\n",
+    });
+
+    const io = capture();
+    const code = await sync(dir, io);
+    expect(code, io.err.join("\n")).toBe(0);
+  });
+
+  it("orphans are reported, then deleted with their manifest entries", async () => {
+    const dir = await project({ "project.yaml": BASE_YAML, "rules/coding.md": RULES_V1 });
+    await sync(dir, capture());
+
+    // Simulate a file that used to be generated but no longer is.
+    const manifestPath = path.join(dir, MANIFEST_REL_PATH);
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      files: Record<string, unknown>;
+    };
+    manifest.files["OLD.md"] = { adapter: "claude-code", adapterVersion: 1, sha256: "stale" };
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
+    await writeFile(path.join(dir, "OLD.md"), "old content\n");
+
+    const verify = capture();
+    const verifyCode = await sync(dir, verify, { verify: true });
+    expect(verifyCode).toBe(1);
+    expect(verify.out.join("\n")).toContain("orphaned    OLD.md");
+
+    const io = capture();
+    const code = await sync(dir, io);
+    expect(code).toBe(0);
+    expect(io.out.join("\n")).toContain("deleted OLD.md");
+    await expect(readText(dir, "OLD.md")).rejects.toMatchObject({ code: "ENOENT" });
+    const after = JSON.parse(await readFile(manifestPath, "utf8")) as { files: Record<string, unknown> };
+    expect(after.files["OLD.md"]).toBeUndefined();
+    expect(after.files["CLAUDE.md"]).toBeDefined();
+  });
+
+  it("--target with an unknown id exits 2", async () => {
+    const dir = await project({ "project.yaml": BASE_YAML, "rules/coding.md": RULES_V1 });
+    const io = capture();
+    const code = await sync(dir, io, { target: "nope" });
     expect(code).toBe(2);
-    expect(io.err.join("\n")).toContain("project.yaml not found");
+    expect(io.err.join("\n")).toContain("unknown target 'nope'");
+  });
+
+  it("--target for an adapter-less target warns and writes nothing (exit 0)", async () => {
+    const dir = await project({
+      "project.yaml": `runtime: 1
+project: demo
+targets: [claude-code, cursor]
+rules:
+  - rules/coding.md
+`,
+      "rules/coding.md": RULES_V1,
+    });
+
+    const io = capture();
+    const code = await sync(dir, io, { target: "cursor" });
+    expect(code, io.err.join("\n")).toBe(0);
+    expect(io.out.join("\n")).toContain("no adapter registered for 'cursor'");
+    expect(io.out.join("\n")).toContain("nothing to generate");
+  });
+
+  it("the sample project is in sync (committed artifacts stay converged)", async () => {
+    const io = capture();
+    const code = await sync(SAMPLE_DIR, io);
+    expect(code).toBe(0);
+    expect(io.out.join("\n")).toContain("everything in sync (1 file(s) managed)");
   });
 });

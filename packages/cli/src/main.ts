@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { runSync } from "./commands/sync.js";
-
-const CLI_VERSION = "0.1.0";
+import { CLI_VERSION } from "./version.js";
 
 const program = new Command();
 
@@ -17,7 +16,7 @@ program
   .option("-y, --yes", "write without prompting")
   .option("--verify", "verify only: report changes and drift, write nothing")
   .option("--target <id>", "limit to one target")
-  .option("--force", "overwrite hand-edited generated files")
+  .option("--force", "overwrite hand-edited or unmanaged files")
   .action(async (options) => {
     const exitCode = await runSync({
       cwd: process.cwd(),
