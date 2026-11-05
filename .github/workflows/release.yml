@@ -1,0 +1,100 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  ESBUILD_VERSION: "0.28.2" # matches the version resolved in pnpm-lock.yaml
+  SEA_FUSE: "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2"
+
+jobs:
+  build:
+    name: build (${{ matrix.artifact }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: runtime-linux-x64
+          - os: windows-latest
+            artifact: runtime-windows-x64.exe
+          - os: macos-latest # arm64
+            artifact: runtime-macos-arm64
+          - os: macos-13 # last Intel runner
+            artifact: runtime-macos-x64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Enable pnpm via corepack
+        run: corepack enable pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build
+        run: pnpm build
+
+      # Node SEA: bundle the CLI to one CommonJS file, bake it into a blob,
+      # then inject the blob into a copy of the platform's Node binary.
+      - name: Bundle CLI (single CommonJS file)
+        run: npx -y esbuild@${{ env.ESBUILD_VERSION }} packages/cli/dist/main.js --bundle --platform=node --format=cjs --outfile=build/sea-entry.cjs
+      - name: Generate SEA blob
+        run: node --experimental-sea-config scripts/sea/sea-config.json
+
+      - name: Assemble executable (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cp "$(which node)" build/${{ matrix.artifact }}
+          npx -y postject build/${{ matrix.artifact }} NODE_SEA_BLOB build/sea-prep.blob --sentinel-fuse ${{ env.SEA_FUSE }}
+
+      - name: Assemble executable (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cp "$(which node)" build/${{ matrix.artifact }}
+          npx -y postject build/${{ matrix.artifact }} NODE_SEA_BLOB build/sea-prep.blob --sentinel-fuse ${{ env.SEA_FUSE }} --macho-segment-name NODE_SEA
+
+      - name: Assemble executable (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item (Get-Command node).Source build/${{ matrix.artifact }}
+          # Node's PE signature is invalidated by injection; remove it first (per Node SEA docs).
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Where-Object { $_.FullName -match '\\x64' } |
+            Select-Object -First 1 -ExpandProperty FullName
+          & $signtool remove /s build/${{ matrix.artifact }}
+          npx -y postject build/${{ matrix.artifact }} NODE_SEA_BLOB build/sea-prep.blob --sentinel-fuse ${{ env.SEA_FUSE }}
+
+      - name: Smoke test — sync --verify on the sample project
+        shell: bash
+        run: |
+          cd examples/sample-project
+          "../../build/${{ matrix.artifact }}" sync --verify
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: build/${{ matrix.artifact }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Generate SHA-256 checksums
+        run: |
+          cd dist
+          sha256sum runtime-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" dist/runtime-* dist/SHA256SUMS.txt --verify-tag --generate-notes --title "${{ github.ref_name }}"
