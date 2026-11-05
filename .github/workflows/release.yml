@@ -13,20 +13,15 @@ env:
 
 jobs:
   build:
-    name: build (${{ matrix.artifact }})
+    name: build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
-            artifact: runtime-linux-x64
           - os: windows-latest
-            artifact: runtime-windows-x64.exe
-          - os: macos-latest # arm64
-            artifact: runtime-macos-arm64
-          - os: macos-13 # last Intel runner
-            artifact: runtime-macos-x64
+          - os: macos-latest # arm64 native + x64 via the official darwin-x64 node build
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,46 +35,66 @@ jobs:
         run: pnpm build
 
       # Node SEA: bundle the CLI to one CommonJS file, bake it into a blob,
-      # then inject the blob into a copy of the platform's Node binary.
+      # then inject the blob into a copy of the Node binary.
       - name: Bundle CLI (single CommonJS file)
         run: npx -y esbuild@${{ env.ESBUILD_VERSION }} packages/cli/dist/main.js --bundle --platform=node --format=cjs --outfile=build/sea-entry.cjs
       - name: Generate SEA blob
         run: node --experimental-sea-config scripts/sea/sea-config.json
 
-      - name: Assemble executable (Linux)
+      - name: Assemble runtime-linux-x64
         if: runner.os == 'Linux'
         run: |
-          cp "$(which node)" build/${{ matrix.artifact }}
-          npx -y postject build/${{ matrix.artifact }} NODE_SEA_BLOB build/sea-prep.blob --sentinel-fuse ${{ env.SEA_FUSE }}
+          cp "$(which node)" build/runtime-linux-x64
+          npx -y postject build/runtime-linux-x64 NODE_SEA_BLOB build/sea-prep.blob --sentinel-fuse ${{ env.SEA_FUSE }}
 
-      - name: Assemble executable (macOS)
+      # macOS: postject invalidates Apple's code signature; re-sign ad hoc so
+      # the binary executes at all (Apple Silicon refuses unsigned Mach-O).
+      # This is NOT Developer-ID/possibly-notarized distribution signing.
+      - name: Assemble runtime-macos-arm64 (native)
         if: runner.os == 'macOS'
         run: |
-          cp "$(which node)" build/${{ matrix.artifact }}
-          npx -y postject build/${{ matrix.artifact }} NODE_SEA_BLOB build/sea-prep.blob --sentinel-fuse ${{ env.SEA_FUSE }} --macho-segment-name NODE_SEA
+          cp "$(which node)" build/runtime-macos-arm64
+          npx -y postject build/runtime-macos-arm64 NODE_SEA_BLOB build/sea-prep.blob --sentinel-fuse ${{ env.SEA_FUSE }} --macho-segment-name NODE_SEA
+          codesign --force --sign - build/runtime-macos-arm64
 
-      - name: Assemble executable (Windows)
+      - name: Assemble runtime-macos-x64 (via official darwin-x64 node)
+        if: runner.os == 'macOS'
+        run: |
+          NODE_VERSION="$(node --version)"
+          mkdir -p build/x64node
+          curl -sSL "https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-darwin-x64.tar.gz" | tar -xz -C build/x64node --strip-components=1
+          cp build/x64node/bin/node build/runtime-macos-x64
+          npx -y postject build/runtime-macos-x64 NODE_SEA_BLOB build/sea-prep.blob --sentinel-fuse ${{ env.SEA_FUSE }} --macho-segment-name NODE_SEA
+          codesign --force --sign - build/runtime-macos-x64
+
+      - name: Assemble runtime-windows-x64.exe
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Copy-Item (Get-Command node).Source build/${{ matrix.artifact }}
+          Copy-Item (Get-Command node).Source build/runtime-windows-x64.exe
           # Node's PE signature is invalidated by injection; remove it first (per Node SEA docs).
           $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
             Where-Object { $_.FullName -match '\\x64' } |
             Select-Object -First 1 -ExpandProperty FullName
-          & $signtool remove /s build/${{ matrix.artifact }}
-          npx -y postject build/${{ matrix.artifact }} NODE_SEA_BLOB build/sea-prep.blob --sentinel-fuse ${{ env.SEA_FUSE }}
+          & $signtool remove /s build/runtime-windows-x64.exe
+          npx -y postject build/runtime-windows-x64.exe NODE_SEA_BLOB build/sea-prep.blob --sentinel-fuse ${{ env.SEA_FUSE }}
 
       - name: Smoke test — sync --verify on the sample project
         shell: bash
         run: |
           cd examples/sample-project
-          "../../build/${{ matrix.artifact }}" sync --verify
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            ../../build/runtime-macos-arm64 sync --verify
+            ../../build/runtime-macos-x64 sync --verify   # Rosetta 2
+          else
+            ../../build/runtime-* sync --verify
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: build/${{ matrix.artifact }}
+          name: ${{ runner.os }}-${{ runner.arch }}
+          path: |
+            build/runtime-*
 
   release:
     needs: build
@@ -97,4 +112,9 @@ jobs:
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" dist/runtime-* dist/SHA256SUMS.txt --verify-tag --generate-notes --title "${{ github.ref_name }}"
+        run: |
+          EXTRA=""
+          case "${{ github.ref_name }}" in
+            *-test*) EXTRA="--prerelease" ;;
+          esac
+          gh release create "${{ github.ref_name }}" dist/runtime-* dist/SHA256SUMS.txt --verify-tag --generate-notes --title "${{ github.ref_name }}" $EXTRA
