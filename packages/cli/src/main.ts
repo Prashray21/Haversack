@@ -30,4 +30,11 @@ program
     process.exitCode = exitCode;
   });
 
-await program.parseAsync(process.argv);
+// No top-level await: the CLI entry must bundle to CommonJS for Node SEA
+// single-executable builds (scripts/sea + the release workflow).
+program
+  .parseAsync(process.argv)
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
