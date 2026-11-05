@@ -293,7 +293,7 @@ The pricing unit (per project, per seat, or per check) is an open question for d
 2. Pricing unit: per project, per seat, or per check?
 3. Which three targets ship first, based on design-partner usage?
 4. How much of rule authoring can `init` automate reliably?
-5. Should the CLI be open source to reduce the trust barrier, with the hosted checks and gateway as the paid layer?
+5. ~~Should the CLI be open source to reduce the trust barrier, with the hosted checks and gateway as the paid layer?~~ **Answered (D12):** the CLI and core are MIT; the hosted GitHub App and gateway live in a separate, non-MIT codebase and carry the commercial layer.
 6. What is the minimum viable gateway, and is it better as a standalone product?
 7. Managed-region / local-notes — raised 2026-11-06 during MVP planning; explicitly out of scope for now (do not build without validation).
 
@@ -330,3 +330,5 @@ Decisions made while building the MVP that refine this PRD. Where this log is mo
 | D9 | MVP targets: `claude-code`, `cursor`, `copilot` (resolves open question 3 for the MVP). |
 | D10 | Generated output larger than ~20 KB warns at sync time; an import mode (split + referenced files) is planned for v1.1. |
 | D11 | `runtime init` must ingest existing `CLAUDE.md` / `AGENTS.md` / `.cursor/rules` (see F5.1). **Required before MVP exit** — not deferred to v1.1. |
+| D12 | License: `packages/cli` and `packages/core` are MIT (LICENSE added 2026-11-06). The hosted GitHub App and the managed gateway are separate, non-MIT codebases and carry the commercial layer. The repository stays private during the MVP; `LICENSE` ships so a public repo can go live without re-licensing. |
+| D13 | Check engine (local CLI): `runtime check` scans git-tracked files (whole-file mode by default) or only the added lines of a diff with `--base <ref>` (D2 semantics). LLM-judged checks report `skipped` until the judge runs — never a pass. Exit codes per D6: `0` clean, `1` a block-severity check failed, `3` secret findings (redacted). The GitHub App evaluates PRs against the base branch's `project.yaml` (D1). |
