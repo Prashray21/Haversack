@@ -5,3 +5,6 @@ CLAUDE.md                       text eol=lf
 .cursor/rules/*.mdc             text eol=lf
 .github/copilot-instructions.md text eol=lf
 .runtime/manifest.json          text eol=lf
+
+# Sample-project fixtures are compared byte-for-byte by tests.
+examples/**                     text eol=lf

@@ -1,5 +1,7 @@
 # Project Runtime
 
+> **Status: early development — not production-ready.** The repo is private during the MVP; commands, file formats, and exit codes may change.
+
 Write your project's AI setup once. Sync it to every tool. Enforce it.
 
 Project Runtime is a control plane for AI-assisted software teams. A team defines its project's context, rules, targets, and checks once in a portable `project.yaml`; the Runtime CLI compiles that definition into each AI tool's native configuration, detects hand-edits as drift, and refuses to write secrets anywhere. A GitHub App (in development) will check every PR against the same rules.
