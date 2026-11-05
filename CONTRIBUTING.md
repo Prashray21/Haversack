@@ -25,7 +25,7 @@ Node >= 20. TypeScript strict, ESM, Vitest.
 
 ## PR checklist
 
-- [ ] `pnpm typecheck && pnpm build && pnpm test` green locally
+- [ ] `pnpm build && pnpm typecheck && pnpm test` green locally (build first — the CLI typechecks against core's dist)
 - [ ] New behavior has tests (including the Windows CI run)
 - [ ] Behavior decisions recorded in `docs/PRD.md` §19 (D-numbers)
 - [ ] Exit codes and user-facing output updated in the README if changed

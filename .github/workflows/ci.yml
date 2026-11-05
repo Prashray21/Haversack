@@ -22,9 +22,11 @@ jobs:
         run: corepack enable pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Typecheck
-        run: pnpm typecheck
+      # Build first: the CLI typechecks against @runtime/core's dist
+      # declarations, which only exist after core builds.
       - name: Build
         run: pnpm build
+      - name: Typecheck
+        run: pnpm typecheck
       - name: Test
         run: pnpm test
