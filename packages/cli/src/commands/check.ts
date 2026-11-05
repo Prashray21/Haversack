@@ -1,6 +1,4 @@
 import { execFileSync } from "node:child_process";
-import { realpathSync } from "node:fs";
-import path from "node:path";
 import {
   CHECK_MAX_FILE_BYTES,
   LoadError,
@@ -210,16 +208,10 @@ function gitListFiles(cwd: string): string[] {
   try {
     // Refuse to scan a foreign tree: if cwd is not a repo (or is a subdir of
     // some ancestor repo), scanning would silently target the wrong files.
-    // realpathSync resolves 8.3 short paths (GitHub's Windows runners use
-    // C:\Users\RUNNER~1\... for temp) and is case-insensitive on win32.
-    const toplevel = git(cwd, ["rev-parse", "--show-toplevel"]).trim();
-    const cwdReal = realpathSync(path.resolve(cwd));
-    const topReal = realpathSync(path.resolve(toplevel));
-    const sameRoot =
-      process.platform === "win32"
-        ? cwdReal.toLowerCase() === topReal.toLowerCase()
-        : cwdReal === topReal;
-    if (!sameRoot) {
+    // `--show-cdup` prints "" exactly when cwd is the repo root — immune to
+    // 8.3 short paths, case, and slash-direction differences (Windows CI).
+    const cdup = git(cwd, ["rev-parse", "--show-cdup"]).trim();
+    if (cdup !== "") {
       throw new CheckUsageError("runtime check must run from the repository root");
     }
     out = git(cwd, ["ls-files", "-z"]);
