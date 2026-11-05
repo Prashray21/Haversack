@@ -11,3 +11,5 @@ export * from "./drift/manifest.js";
 export * from "./drift/detect.js";
 export * from "./secrets/scan.js";
 export * from "./checks/types.js";
+export * from "./checks/glob.js";
+export * from "./checks/static.js";

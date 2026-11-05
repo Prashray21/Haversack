@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { runSync } from "./commands/sync.js";
+import { runCheck } from "./commands/check.js";
 import { CLI_VERSION } from "./version.js";
 
 const program = new Command();
@@ -24,6 +25,22 @@ program
       verify: options.verify ?? false,
       target: options.target,
       force: options.force ?? false,
+      stdout: (line) => process.stdout.write(`${line}\n`),
+      stderr: (line) => process.stderr.write(`${line}\n`),
+    });
+    process.exitCode = exitCode;
+  });
+
+program
+  .command("check")
+  .description("run the project's checks locally (static now; llm-judged rules report skipped)")
+  .option("--base <ref>", "only evaluate the added lines of `git diff <base>`")
+  .option("--json", "machine-readable output")
+  .action(async (options) => {
+    const exitCode = await runCheck({
+      cwd: process.cwd(),
+      base: options.base,
+      json: options.json ?? false,
       stdout: (line) => process.stdout.write(`${line}\n`),
       stderr: (line) => process.stderr.write(`${line}\n`),
     });

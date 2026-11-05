@@ -36,6 +36,21 @@ export function compileIgnorePatterns(patterns: readonly string[]): RegExp[] {
   return patterns.map((pattern) => new RegExp(pattern));
 }
 
+export interface FileSecretFinding extends SecretFinding {
+  file: string;
+}
+
+/** Scans a set of files with the project ignore list applied; findings are redacted. */
+export function scanFiles(files: ReadonlyArray<{ path: string; content: string }>, ignore: RegExp[]): FileSecretFinding[] {
+  const findings: FileSecretFinding[] = [];
+  for (const file of files) {
+    for (const finding of scanText(file.content, { ignore })) {
+      findings.push({ file: file.path, ...finding });
+    }
+  }
+  return findings;
+}
+
 /**
  * Scans text line by line. A line is skipped when it contains the
  * `runtime:allow-secret` marker or matches an ignore pattern (D8).

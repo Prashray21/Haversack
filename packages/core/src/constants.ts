@@ -14,3 +14,6 @@ export const MANIFEST_REL_PATH = ".runtime/manifest.json";
 
 /** Cap for context/rules files inlined into the definition. */
 export const MAX_SOURCE_FILE_BYTES = 128 * 1024;
+
+/** Cap for files scanned by `runtime check`; larger files are skipped with a warning. */
+export const CHECK_MAX_FILE_BYTES = 1024 * 1024;

@@ -190,6 +190,9 @@ importers:
 
   packages/core:
     dependencies:
+      picomatch:
+        specifier: ^4.0.7
+        version: 4.0.7
       yaml:
         specifier: ^2.4.0
         version: 2.9.1
@@ -200,6 +203,9 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.2
+      '@types/picomatch':
+        specifier: ^4.0.3
+        version: 4.0.3
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
@@ -522,6 +528,9 @@ packages:
 
   '@types/node@24.19.2':
     resolution: {integrity: sha512-93d49wCWJkCyN87MxLpNN6KXPCwFw7bVUg79mGUV1OS40JGWwVCr8n61DXCSqz7CV6/VfPkb7xec7uP2M+QHWQ==}
+
+  '@types/picomatch@4.0.3':
+    resolution: {integrity: sha512-iG0T6+nYJ9FAPmx9SsUlnwcq1ZVRuCXcVEvWnntoPlrOpwtSTKNDC9uVAxTsC3PUvJ+99n4RpAcNgBbHX3JSnQ==}
 
   '@vitest/expect@3.2.7':
     resolution: {integrity: sha512-E8eBXaKibuvH2pSZErOjdVb5vF4PbKYcrnluBTYxEk1l/VhhwZg1kZQsdtjq+CsF5CFydf2Rdkz7jDHKSisi3w==}
@@ -962,6 +971,8 @@ snapshots:
   '@types/node@24.19.2':
     dependencies:
       undici-types: 7.24.6
+
+  '@types/picomatch@4.0.3': {}
 
   '@vitest/expect@3.2.7':
     dependencies:
