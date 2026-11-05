@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Local LLM-check spend ledger (the committed manifest is NOT ignored).
+.runtime/budget.json
+
+.DS_Store

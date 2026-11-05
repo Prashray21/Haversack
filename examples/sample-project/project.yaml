@@ -1,0 +1,59 @@
+runtime: 1
+project: acme-storefront
+description: Next.js storefront on Supabase for Acme.
+
+context:
+  - context/product.md
+  - context/architecture.md
+  - context/decisions.md
+
+rules:
+  - rules/coding.md
+  - rules/security.md
+
+targets: [claude-code, cursor, copilot]
+
+integrations:
+  github: { scopes: [read, branch-write] }
+  supabase: { scopes: [read] }
+
+checks:
+  - id: no-service-role-in-client
+    type: static
+    severity: block
+    description: Service-role keys must never appear in client code.
+    path: [src/**, app/**]
+    exclude: ["**/*.test.ts", "**/*.spec.ts"]
+    pattern: "SUPABASE_SERVICE_ROLE_KEY|service_role"
+    flags: [i]
+    message: Service-role key referenced in client code.
+    fix: Use the anon key and rely on RLS policies.
+
+  - id: no-console-log-in-prod
+    type: static
+    severity: warn
+    path: [src/**]
+    exclude: ["**/*.test.ts"]
+    pattern: 'console\.log\('
+    message: console.log left in production code.
+    fix: Remove it or use the project logger.
+
+  - id: rls-required-on-new-tables
+    type: llm
+    severity: warn
+    paths: [supabase/migrations/**]
+    prompt: |
+      Every new SQL table created in this diff must enable row-level security
+      before it ships. Flag any CREATE TABLE without a matching
+      `enable row level security`.
+    fix: Add `alter table <name> enable row level security;`
+
+model_policy:
+  pin: true
+  budget:
+    usd_per_run: 0.50
+
+secrets:
+  ignore:
+    - pattern: "EXAMPLE_KEY|test-key-\\d+"
+      reason: fixture keys used in docs and tests

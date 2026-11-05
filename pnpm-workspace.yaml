@@ -1,0 +1,7 @@
+packages:
+  - packages/*
+  - apps/*
+
+# pnpm blocks dependency build scripts by default; allow the ones we need.
+allowBuilds:
+  esbuild: true
