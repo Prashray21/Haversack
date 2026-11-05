@@ -85,7 +85,7 @@ describe("runtime check — static engine", () => {
     const code = await check(repo, io);
     const text = io.out.join("\n");
 
-    expect(code).toBe(1);
+    expect(code, io.err.join("\n")).toBe(1);
     expect(text).toContain("✘ no-console-log (block) — 1 finding(s)");
     expect(text).toContain("src/app.ts:2 — console.log left in production code.");
     expect(text).toContain("fix: Remove it or use the project logger.");
