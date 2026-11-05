@@ -1,0 +1,11 @@
+{
+  "files": {
+    "CLAUDE.md": {
+      "adapter": "claude-code",
+      "adapterVersion": 1,
+      "sha256": "4e2da79b82d3a059d2267ec36363dc26e001cc62d9a06a63227e669a1debf91c"
+    }
+  },
+  "generator": "runtime@0.1.0",
+  "runtime": 1
+}
