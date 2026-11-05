@@ -1,9 +1,18 @@
 node_modules/
 dist/
 coverage/
+build/
 *.tsbuildinfo
+
+# Secrets and local environment — never commit these.
+.env
+.env.*
+!.env.example
 
 # Local LLM-check spend ledger (the committed manifest is NOT ignored).
 .runtime/budget.json
 
+# OS files
 .DS_Store
+Thumbs.db
+desktop.ini
