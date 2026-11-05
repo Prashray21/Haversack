@@ -1,0 +1,3 @@
+runtime: 2
+project: bad-spec-demo
+targets: [claude-code]
