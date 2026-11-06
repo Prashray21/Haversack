@@ -111,12 +111,32 @@ jobs:
           cd dist
           sha256sum runtime-* > SHA256SUMS.txt
           cat SHA256SUMS.txt
+      - name: Extract release notes from CHANGELOG.md (M9)
+        run: |
+          TAG="${{ github.ref_name }}"
+          # Section = from the heading mentioning the tag to the next heading.
+          awk -v tag="$TAG" '
+            $0 ~ "^## " tag { found=1; next }
+            /^## / && found { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "CHANGELOG has no section for $TAG — falling back to generated notes"
+            echo "" > release-notes.md
+            echo "EMPTY_NOTES" >> "$GITHUB_ENV"
+          fi
+          cat release-notes.md
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           EXTRA=""
           case "${{ github.ref_name }}" in
-            *-test*) EXTRA="--prerelease" ;;
+            # A hyphen = prerelease per semver (e.g. v0.1.0-alpha.1, v*-test).
+            *-*) EXTRA="--prerelease" ;;
           esac
-          gh release create "${{ github.ref_name }}" dist/runtime-* dist/SHA256SUMS.txt --verify-tag --generate-notes --title "${{ github.ref_name }}" $EXTRA
+          if [ "${{ env.EMPTY_NOTES }}" = "EMPTY_NOTES" ]; then
+            gh release create "${{ github.ref_name }}" dist/runtime-* dist/SHA256SUMS.txt --verify-tag --generate-notes --title "${{ github.ref_name }}" $EXTRA
+          else
+            gh release create "${{ github.ref_name }}" dist/runtime-* dist/SHA256SUMS.txt --verify-tag --notes-file release-notes.md --title "${{ github.ref_name }}" $EXTRA
+          fi

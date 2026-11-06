@@ -1,16 +1,43 @@
 # Project Runtime
 
-> **Status: early development — not production-ready.** The repo is private during the MVP; commands, file formats, and exit codes may change.
+> **Status: alpha — not production-ready.** The repo is private during the MVP; commands, file formats, and exit codes may change.
 
 Write your project's AI setup once. Sync it to every tool. Enforce it.
 
-Project Runtime is a control plane for AI-assisted software teams. A team defines its project's context, rules, targets, and checks once in a portable `project.yaml`; the Runtime CLI compiles that definition into each AI tool's native configuration, detects hand-edits as drift, and refuses to write secrets anywhere. A GitHub App (in development) will check every PR against the same rules.
+Project Runtime is a control plane for AI-assisted software teams. A team defines its project's context, rules, targets, and checks once in a portable `project.yaml`; the Runtime CLI compiles that definition into each AI tool's native configuration, detects hand-edits as drift, and refuses to write secrets anywhere. A GitHub App (designed, not built — see `docs/github-app-design.md`) will check every PR against the same rules.
 
-**Status:** MVP in active development — private repository, no releases yet. The full product spec lives in [docs/PRD.md](docs/PRD.md) (v0.2), including the implementation decision log.
+The full product spec lives in [docs/PRD.md](docs/PRD.md) (v0.2), including the implementation decision log. What works and what does not is listed honestly in [CHANGELOG.md](CHANGELOG.md).
 
-## Install (development)
+## Install
 
-Prerequisites: Node.js >= 20 and pnpm.
+**Requirements:** the repo is **private**, so downloading a release requires access to this repository. Binaries are **unsigned** — Windows shows a SmartScreen warning and macOS binaries are ad-hoc signed (not notarized), so Gatekeeper warns on first run. Integrity comes from SHA-256 verification against `SHA256SUMS.txt`.
+
+1. Download the binary for your OS from the [releases page](../../releases):
+
+   | File | OS |
+   | --- | --- |
+   | `runtime-windows-x64.exe` | Windows (x64) |
+   | `runtime-linux-x64` | Linux (x64) |
+   | `runtime-macos-arm64` | macOS (Apple Silicon) |
+   | `runtime-macos-x64` | macOS (Intel, and Apple Silicon via Rosetta) |
+
+2. Verify the checksum against `SHA256SUMS.txt`:
+
+   ```sh
+   # macOS / Linux
+   shasum -a 256 -c SHA256SUMS.txt --ignore-missing
+   # Windows (PowerShell)
+   Get-FileHash runtime-windows-x64.exe -Algorithm SHA256
+   ```
+
+3. Confirm it runs and verify a project is in sync:
+
+   ```sh
+   runtime --version
+   runtime sync --verify        # exit 0 = everything in sync; exit 1 = drift
+   ```
+
+**From source** (development): Node.js >= 20 and pnpm.
 
 ```sh
 corepack enable pnpm   # or: npm i -g pnpm
@@ -23,9 +50,9 @@ pnpm test
 
 | Path | What |
 | --- | --- |
-| `packages/core` | `project.yaml` v1 schema, parser, adapter interface, drift + secret scanning |
-| `packages/cli` | the `runtime` command |
-| `apps/github-app` | PR checks — planned |
+| `packages/core` | `project.yaml` v1 schema, parser, adapters, checks, drift, secret scanning |
+| `packages/cli` | the `runtime` command (`init`, `sync`, `check`, `join`) |
+| `apps/github-app` | PR checks — designed (`docs/github-app-design.md`), not built |
 | `examples/sample-project` | demo fixture for `runtime sync` |
 
 ## Quickstart
@@ -37,41 +64,31 @@ cd examples/sample-project
 node ../../packages/cli/dist/main.js sync
 ```
 
-`sync` shows a diff of what it is about to write, asks for confirmation, then generates:
-
-- `CLAUDE.md` — Claude Code's project memory, compiled from `project.yaml` plus the context and rules files it references
-- `.runtime/manifest.json` — content hashes used for drift detection (commit this file)
-
-Useful flags:
+`sync` shows a diff of what it is about to write, asks for confirmation, then generates the target files (`CLAUDE.md`, `.cursor/rules/runtime.mdc`, `.github/copilot-instructions.md`) plus `.runtime/manifest.json` — content hashes used for drift detection (commit the manifest).
 
 | Command | Behavior |
 | --- | --- |
+| `runtime init` | scan a repo, ingest existing `CLAUDE.md` / `AGENTS.md` / `.cursor/rules`, write a DRAFT `project.yaml` |
 | `runtime sync` | show diff, confirm, write |
 | `runtime sync -y` | write without prompting |
 | `runtime sync --verify` | report-only; exit 1 when anything would change or drift exists |
 | `runtime sync --force` | overwrite hand-edited generated files |
 | `runtime sync --target <id>` | limit to one target (`claude-code`, `cursor`, `copilot`) |
+| `runtime check` | run the project's checks locally (static always; llm-judged in `--base` mode) |
+| `runtime check --base <ref>` | evaluate added diff lines only — the same semantics the PR App will use |
+| `runtime join` | set up a new teammate: sync, verify, report what is missing |
 
 Hand-edit a generated file and the next `sync` refuses to overwrite it, reporting the drift, until you pass `--force`.
 
-Secrets: `sync` scans the definition sources and everything it generates; a suspected secret blocks the run (exit 3) with a redacted report — the value is never printed. Line-level opt-out: append `# runtime:allow-secret` to the line. Repo-wide opt-out: a `secrets.ignore` list in `project.yaml`.
-
-## CLI commands
-
-| Command | Status |
-| --- | --- |
-| `runtime sync` | implemented |
-| `runtime init` / `runtime check` / `runtime join` | planned for the MVP |
-
-Targets: **Claude Code** is implemented; **Cursor** and **Copilot** adapters are next (see the PRD roadmap).
+Secrets: `sync` and `check` scan the definition and everything it generates; a suspected secret blocks the run (exit 3) with a redacted report — the value is never printed. Line-level opt-out: append `# runtime:allow-secret` to the line. Repo-wide opt-out: a `secrets.ignore` list in `project.yaml`.
 
 ## Security
 
 - Generated files always carry a `GENERATED BY RUNTIME — DO NOT EDIT` header; hand edits are reported as drift.
-- Secret scanning runs on `sync`; findings are always redacted.
+- Secret scanning runs on `sync` and `check`; findings are always redacted.
 - Integrations in `project.yaml` are validated but inert until the managed gateway ships (Phase 2).
 - All exit codes are documented in the PRD decision log (D6).
 
 ## License
 
-Not yet chosen — see the open questions in the PRD (open-source CLI vs. paid hosted layer).
+MIT for `packages/cli` and `packages/core` (see [LICENSE](LICENSE)); the hosted GitHub App and gateway will carry the commercial layer (PRD decision D12).
