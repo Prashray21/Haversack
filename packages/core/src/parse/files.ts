@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 
 export type SourceFileErrorCode = "missing" | "not_a_file" | "too_large" | "unsafe_path" | "unreadable";
@@ -46,14 +46,31 @@ export async function readRepoTextFile(
     throw new SourceFileError("unsafe_path", `${relPath} resolves outside the repo root`);
   }
 
-  let raw: Buffer;
+  // Symlink safety: resolve the real location of the root and the file BEFORE
+  // any content is read. A link (symlink or Windows junction) that lands
+  // outside the real repo root is rejected without its content being read.
+  // realpath also normalizes 8.3 short paths and case, keeping the comparison
+  // reliable on Windows CI.
+  let realRoot: string;
+  let realAbs: string;
   try {
-    raw = await readFile(abs);
+    [realRoot, realAbs] = await Promise.all([realpath(rootAbs), realpath(abs)]);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "ENOENT") {
       throw new SourceFileError("missing", `${relPath} does not exist in this repo (typo? check the path)`);
     }
+    throw new SourceFileError("unreadable", `${relPath} could not be resolved: ${String(error)}`);
+  }
+  if (realAbs !== realRoot && !realAbs.startsWith(realRoot + path.sep)) {
+    throw new SourceFileError("unsafe_path", `${relPath} resolves outside the repo root (symlink?)`);
+  }
+
+  let raw: Buffer;
+  try {
+    raw = await readFile(abs);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
     if (code === "EISDIR") {
       throw new SourceFileError("not_a_file", `${relPath} is a directory, not a file`);
     }

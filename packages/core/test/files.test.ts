@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -76,5 +76,44 @@ describe("readRepoTextFile", () => {
     await expect(readRepoTextFile(root, "../escape.md", 128 * 1024)).rejects.toMatchObject({
       code: "unsafe_path",
     } satisfies Partial<SourceFileError>);
+  });
+
+  it("refuses a symlink/junction that points outside the repo root — its content is never read", async () => {
+    const root = await setup({ "ctx/keep.md": "x\n" });
+    const outsideDir = path.join(
+      tmpdir(),
+      `runtime-outside-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    await mkdir(outsideDir, { recursive: true });
+    const secretPath = path.join(outsideDir, "secret.txt");
+    await writeFile(secretPath, "TOP SECRET OUTSIDE\n");
+
+    let linkCreated = false;
+    try {
+      if (process.platform === "win32") {
+        // Directory junctions need no privilege on Windows and resolve exactly
+        // like symlinks; they exercise the same escape.
+        await symlink(outsideDir, path.join(root, "ctx/outside-link"), "junction");
+      } else {
+        await symlink(secretPath, path.join(root, "ctx/link.md"), "file");
+      }
+      linkCreated = true;
+    } catch {
+      // The platform refuses link creation entirely; the scenario is
+      // exercised wherever it is possible (linux CI).
+    }
+    if (!linkCreated) {
+      await rm(outsideDir, { recursive: true, force: true });
+      return;
+    }
+
+    try {
+      const rel = process.platform === "win32" ? path.join("ctx", "outside-link", "secret.txt") : "ctx/link.md";
+      await expect(readRepoTextFile(root, rel, 128 * 1024)).rejects.toMatchObject({
+        code: "unsafe_path",
+      } satisfies Partial<SourceFileError>);
+    } finally {
+      await rm(outsideDir, { recursive: true, force: true });
+    }
   });
 });

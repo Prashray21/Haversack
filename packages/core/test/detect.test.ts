@@ -34,6 +34,24 @@ describe("assessGeneratedFile", () => {
     expect(assessGeneratedFile({ generated, onDisk: ours, manifestEntry: undefined })).toBe("stale");
   });
 
+  it("stale: our header after frontmatter without a manifest entry (mdc-style, manifest lost)", () => {
+    const ours = `---\ntitle: x\n---\n<!-- ${GENERATED_HEADER_MARKER} ...\nold content\n`;
+    expect(assessGeneratedFile({ generated, onDisk: ours, manifestEntry: undefined })).toBe("stale");
+  });
+
+  it("untracked: a foreign file that only MENTIONS the header text is never treated as ours", () => {
+    // Header spoofing (M3): quoting the marker mid-file must not make sync
+    // believe it produced this file — untracked, so sync never overwrites it
+    // without --force.
+    const foreign = `# my own notes\n\nlike a "${GENERATED_HEADER_MARKER}" file\n`;
+    expect(assessGeneratedFile({ generated, onDisk: foreign, manifestEntry: undefined })).toBe("untracked");
+  });
+
+  it("untracked: header text at the start without a comment opener is not ours (prose, not header)", () => {
+    const foreign = `${GENERATED_HEADER_MARKER} was here\n`;
+    expect(assessGeneratedFile({ generated, onDisk: foreign, manifestEntry: undefined })).toBe("untracked");
+  });
+
   it("hand-edited: disk differs from the last sync", () => {
     expect(
       assessGeneratedFile({ generated, onDisk: "v1 content edited\n", manifestEntry: ENTRY(lastSynced) }),
