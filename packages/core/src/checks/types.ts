@@ -15,7 +15,9 @@ export type SkippedReason =
   /** the judge could not run (configuration or network) */
   | "llm_unavailable"
   /** the check body failed to compile (schema-validated, defensive) */
-  | "invalid_pattern";
+  | "invalid_pattern"
+  /** the check exceeded its cooperative time budget (possible catastrophic pattern) */
+  | "time_budget_exceeded";
 
 export interface CheckFinding {
   checkId: string;

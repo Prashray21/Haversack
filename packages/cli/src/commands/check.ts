@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import {
   CHECK_MAX_FILE_BYTES,
+  CHECK_TIME_BUDGET_MS,
   LoadError,
   compileIgnorePatterns,
   loadProject,
@@ -81,6 +82,12 @@ async function checkInner(options: CheckOptions): Promise<number> {
     if (changedLines && !changedLines.has(relPath)) continue;
     try {
       const text = await readRepoTextFile(options.cwd, relPath, CHECK_MAX_FILE_BYTES);
+      if (text.content.includes("\0")) {
+        // Binary content: regex rules are meaningless on it and can match
+        // garbage. Skip it — never evaluated, never silently scanned.
+        stderr(`⚠ skipped ${relPath} — binary file (NUL byte)`);
+        continue;
+      }
       files.push({
         path: relPath,
         content: text.content,
@@ -95,7 +102,9 @@ async function checkInner(options: CheckOptions): Promise<number> {
   const ignore = compileIgnorePatterns(config.secrets.ignore.map((entry) => entry.pattern));
   const secrets: FileSecretFinding[] = scanFiles(files, ignore);
 
-  const results: CheckResult[] = runStaticChecks(staticChecks, files);
+  const results: CheckResult[] = runStaticChecks(staticChecks, files, {
+    timeBudgetMs: CHECK_TIME_BUDGET_MS,
+  });
   for (const check of llmChecks) {
     results.push({
       checkId: check.id,
@@ -179,6 +188,8 @@ function describeSkipped(result: CheckResult): string {
       return "budget exhausted (D4)";
     case "invalid_pattern":
       return "pattern failed to compile";
+    case "time_budget_exceeded":
+      return "check exceeded its time budget (a pattern may be catastrophically slow) — skipped, never a pass";
     default:
       return "unknown reason";
   }

@@ -12,11 +12,15 @@ import type { StaticCheck } from "../schema/project.js";
  * A check with no files in scope is `skipped` (no_matching_files) — a scope
  * that never matched anything must not report a vacuous pass.
  */
-export function runStaticChecks(checks: StaticCheck[], files: CheckedFile[]): CheckResult[] {
-  return checks.map((check) => runStaticCheck(check, files));
+export function runStaticChecks(
+  checks: StaticCheck[],
+  files: CheckedFile[],
+  options: { timeBudgetMs?: number } = {},
+): CheckResult[] {
+  return checks.map((check) => runStaticCheck(check, files, options.timeBudgetMs));
 }
 
-function runStaticCheck(check: StaticCheck, files: CheckedFile[]): CheckResult {
+function runStaticCheck(check: StaticCheck, files: CheckedFile[], timeBudgetMs?: number): CheckResult {
   const includes = Array.isArray(check.path) ? check.path : [check.path];
   const scoped = files.filter((file) => matchesPath(file.path, includes, check.exclude));
 
@@ -45,10 +49,24 @@ function runStaticCheck(check: StaticCheck, files: CheckedFile[]): CheckResult {
   }
 
   const findings: CheckFinding[] = [];
+  // Cooperative deadline between lines (M3). A check that blows it is
+  // `skipped` — never a hang, never a pass. A single catastrophic regex.test
+  // call cannot be interrupted (see CHECK_TIME_BUDGET_MS for the residual
+  // risk and its bound).
+  const deadline = timeBudgetMs === undefined ? undefined : Date.now() + timeBudgetMs;
   for (const file of scoped) {
     const lines = file.content.split("\n");
     const targets = file.changedLines ?? lines.map((_, index) => index + 1);
     for (const lineNumber of targets) {
+      if (deadline !== undefined && Date.now() > deadline) {
+        return {
+          checkId: check.id,
+          status: "skipped",
+          severity: check.severity,
+          findings: [],
+          skippedReason: "time_budget_exceeded",
+        };
+      }
       const line = lines[lineNumber - 1];
       if (line === undefined) continue;
       if (regex.test(line)) {

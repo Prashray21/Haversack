@@ -17,3 +17,12 @@ export const MAX_SOURCE_FILE_BYTES = 128 * 1024;
 
 /** Cap for files scanned by `runtime check`; larger files are skipped with a warning. */
 export const CHECK_MAX_FILE_BYTES = 1024 * 1024;
+
+/**
+ * Cooperative per-check time budget for `runtime check` (M3): a static check
+ * that exceeds it is `skipped` — never a hang, never a pass. Residual risk:
+ * a single line that backtracks catastrophically inside one regex.test call
+ * cannot be interrupted without worker threads (unsupported in Node SEA
+ * builds); the 1 MB per-file input cap bounds that work.
+ */
+export const CHECK_TIME_BUDGET_MS = 1_000;

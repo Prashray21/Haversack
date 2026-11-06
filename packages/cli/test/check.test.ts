@@ -289,4 +289,33 @@ describe("runtime check — F2.6 cost controls", () => {
     // the identical violation in docs/notes.md is outside the check's path — not reported
     expect(consoleCheck?.findings.map((f) => f.file)).toEqual(["src/app.ts"]);
   });
+
+  it("binary files are skipped with a warning, never scanned (M3)", async () => {
+    const repo = await makeRepo(
+      {
+        "project.yaml": `runtime: 1
+project: demo
+targets: [claude-code]
+checks:
+  - id: finds-zzzz
+    type: static
+    severity: block
+    path: ["**"]
+    exclude: ["project.yaml"]
+    pattern: 'ZZZZ'
+    message: ZZZZ found.
+`,
+        "rules/coding.md": "x\n",
+        // NUL bytes make this binary; "ZZZZ" would match the pattern if scanned.
+        "assets/logo.bin": "Z\u0000Y\u0000ZZZZ\u0000",
+      },
+      true,
+    );
+    const io = capture();
+    const code = await check(repo, io);
+    expect(code).toBe(0);
+    expect(io.err.join("\n")).toContain("assets/logo.bin");
+    expect(io.err.join("\n")).toContain("binary");
+    expect(io.out.join("\n")).toContain("✓ finds-zzzz (block) — no findings");
+  });
 });

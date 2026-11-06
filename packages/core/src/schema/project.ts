@@ -59,9 +59,12 @@ export const severitySchema = z.enum(["block", "warn", "info"]);
 export const targetIdSchema = z.enum(["claude-code", "cursor", "copilot"]);
 
 const regexField = (what: string) =>
-  z.string().refine(compilesAsRegex, {
-    message: `${what} must be a valid JavaScript regular expression`,
-  });
+  z
+    .string()
+    .max(500, `${what} must be at most 500 characters (bounds evaluation work)`)
+    .refine(compilesAsRegex, {
+      message: `${what} must be a valid JavaScript regular expression`,
+    });
 
 /* ── checks (F2) ────────────────────────────────────────────── */
 

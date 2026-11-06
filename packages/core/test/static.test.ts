@@ -105,6 +105,28 @@ describe("runStaticChecks", () => {
     expect(results[1]).toMatchObject({ status: "fail", checkId: "no-todo", severity: "warn" });
   });
 
+  it("a check that exceeds its cooperative time budget is skipped, never a pass (M3)", () => {
+    // timeBudgetMs: 0 — the deadline has already passed when the first line is
+    // evaluated, so the skip is deterministic regardless of machine speed.
+    const [result] = runStaticChecks(
+      [CONSOLE_CHECK],
+      [file("src/app.ts", "console.log(a);\n".repeat(5000))],
+      { timeBudgetMs: 0 },
+    );
+    expect(result?.status).toBe("skipped");
+    expect(result?.skippedReason).toBe("time_budget_exceeded");
+    expect(result?.findings).toEqual([]);
+  });
+
+  it("the time budget is off by default; long evaluations still complete", () => {
+    const [result] = runStaticChecks(
+      [CONSOLE_CHECK],
+      [file("src/app.ts", "x\n".repeat(50_000) + "console.log(a);\n")],
+    );
+    expect(result?.status).toBe("fail");
+    expect(result?.findings[0]?.line).toBe(50_001);
+  });
+
   it("line anchors match per line", () => {
     const check = staticCheck({ id: "leading-space", pattern: "^ {4}", message: "indent" });
     const [result] = runStaticChecks([check], [file("src/a.ts", "ok\n    indented\n")]);
