@@ -1,0 +1,46 @@
+runtime: 1
+project: project-runtime
+description: Project Runtime dogfooding its own repo — one definition for AI tool setup, enforced on the codebase itself.
+
+context:
+  - context/product.md
+  - context/architecture.md
+  - context/decisions.md
+
+rules:
+  - rules/coding.md
+  - rules/process.md
+
+targets: [claude-code]
+
+checks:
+  - id: no-console-in-src
+    type: static
+    severity: warn
+    description: Commands and library code receive stdout/stderr by injection; direct console calls bypass that contract.
+    path: packages/*/src/**
+    exclude: [packages/cli/src/main.ts]
+    pattern: 'console\.(log|warn|error)\('
+    message: Direct console call in library or command code.
+    fix: Route output through the stdout/stderr parameters the command receives.
+
+  - id: no-debugger-statements
+    type: static
+    severity: block
+    description: debugger statements must never ship in source.
+    path: packages/*/src/**
+    pattern: '\bdebugger\b'
+    message: debugger statement in shipped source.
+    fix: Remove the debugger statement.
+
+  - id: no-secret-shaped-strings-in-src
+    type: static
+    severity: block
+    description: Credential-shaped literals in source. The built-in secret gate (D8) is the broader layer; this catches the common shapes at the source level with a fix hint.
+    path: packages/*/src/**
+    pattern: '\b(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}|sk-[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})\b'
+    message: Credential-shaped literal in source.
+    fix: Load credentials from the environment; never commit credential-shaped literals.
+
+model_policy:
+  pin: true
