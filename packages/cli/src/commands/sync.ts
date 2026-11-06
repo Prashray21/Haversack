@@ -1,5 +1,5 @@
 import { createTwoFilesPatch } from "diff";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import {
@@ -17,6 +17,7 @@ import {
   targetIdSchema,
   tryGetAdapter,
   writeManifest,
+  writeTextFileAtomic,
   type DriftState,
   type GeneratedFile,
   type Manifest,
@@ -224,16 +225,21 @@ export async function runSync(options: SyncOptions): Promise<number> {
     }
   }
 
-  // 10) Write files, delete orphans, update the manifest.
-  for (const p of writable) {
-    const abs = path.join(options.cwd, p.path);
-    await mkdir(path.dirname(abs), { recursive: true });
-    await writeFile(abs, p.content, "utf8"); // LF bytes, no translation (D5)
-    stdout(`wrote ${p.path}`);
-  }
-  for (const orphan of orphanPaths) {
-    await rm(path.join(options.cwd, orphan), { force: true });
-    stdout(`deleted ${orphan}`);
+  // 10) Write files (atomically: temp file + rename), delete orphans, update the manifest.
+  try {
+    for (const p of writable) {
+      await writeTextFileAtomic(options.cwd, p.path, p.content); // LF bytes, no translation (D5)
+      stdout(`wrote ${p.path}`);
+    }
+    for (const orphan of orphanPaths) {
+      await rm(path.join(options.cwd, orphan), { force: true });
+      stdout(`deleted ${orphan}`);
+    }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    stderr(`✘ write failed: ${detail}`);
+    stderr("  files written so far are complete; the manifest was not updated — re-run 'runtime sync' to converge");
+    return 1;
   }
 
   const files: Record<string, ManifestFileEntry> = { ...manifestFiles };
@@ -298,7 +304,10 @@ async function readIfExists(root: string, relPath: string): Promise<string | und
   try {
     return normalizeText(await readFile(path.join(root, relPath), "utf8"));
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    const code = (error as NodeJS.ErrnoException).code;
+    // ENOENT: not there. EISDIR: a directory sits at the generated path —
+    // nothing readable; the write stage surfaces it as a clear failure (exit 1).
+    if (code === "ENOENT" || code === "EISDIR") return undefined;
     throw error;
   }
 }

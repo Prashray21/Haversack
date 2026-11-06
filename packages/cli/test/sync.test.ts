@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -293,5 +293,44 @@ rules:
     const code = await sync(SAMPLE_DIR, io);
     expect(code).toBe(0);
     expect(io.out.join("\n")).toContain("everything in sync (1 file(s) managed)");
+  });
+
+  it("a failed write exits 1 with a clear message and leaves no temp litter (M3)", async () => {
+    // A directory named CLAUDE.md blocks the rename on every platform.
+    const dir = await project({
+      "project.yaml": BASE_YAML,
+      "rules/coding.md": RULES_V1,
+      "CLAUDE.md/keep": "x\n",
+    });
+    const io = capture();
+    const code = await sync(dir, io);
+    expect(code, io.out.join("\n")).toBe(1);
+    expect(io.err.join("\n")).toContain("✘ write failed:");
+    expect(io.err.join("\n")).toContain("re-run 'runtime sync' to converge");
+    const litter = (await readdir(dir)).filter((name) => name.includes(".runtime-tmp-"));
+    expect(litter).toEqual([]);
+  });
+
+  it("a corrupt manifest is reported and recovers on the next sync (M3)", async () => {
+    const dir = await project({ "project.yaml": BASE_YAML, "rules/coding.md": RULES_V1 });
+    const first = capture();
+    expect(await sync(dir, first)).toBe(0);
+
+    // Hand-mangle the manifest AND move the definition, so real work remains.
+    await writeFile(path.join(dir, MANIFEST_REL_PATH), "{ not json !!!", "utf8");
+    await writeFile(path.join(dir, "rules", "coding.md"), RULES_V2, "utf8");
+
+    const verifyIo = capture();
+    const verifyCode = await sync(dir, verifyIo, { verify: true });
+    expect(verifyCode, verifyIo.err.join("\n")).toBe(1);
+    expect(verifyIo.err.join("\n")).toContain("unreadable");
+    expect(verifyIo.out.join("\n")).toContain("stale");
+
+    const recovery = capture();
+    const recoveryCode = await sync(dir, recovery);
+    expect(recoveryCode, recovery.err.join("\n")).toBe(0);
+    // The manifest is regenerated and parses again.
+    const raw = await readText(dir, MANIFEST_REL_PATH);
+    expect(() => JSON.parse(raw)).not.toThrow();
   });
 });

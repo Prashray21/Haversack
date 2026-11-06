@@ -1,7 +1,8 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { MANIFEST_REL_PATH } from "../constants.js";
 import { normalizeText, sha256Hex } from "../parse/files.js";
+import { writeTextFileAtomic } from "../parse/write.js";
 
 export interface ManifestFileEntry {
   adapter: string;
@@ -72,11 +73,11 @@ export async function readManifest(repoRoot: string): Promise<ReadManifestResult
   }
 }
 
-/** Writes the manifest deterministically (LF, sorted keys, trailing newline). */
+/** Writes the manifest deterministically (LF, sorted keys, trailing newline) and atomically. */
 export async function writeManifest(repoRoot: string, manifest: Manifest): Promise<void> {
   const abs = manifestAbsPath(repoRoot);
   await mkdir(path.dirname(abs), { recursive: true });
-  await writeFile(abs, stableStringify(manifest), "utf8");
+  await writeTextFileAtomic(repoRoot, path.relative(repoRoot, abs), stableStringify(manifest));
 }
 
 /** Hashes any content on the canonical form: BOM-stripped, LF-normalized (D5). */

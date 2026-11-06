@@ -1,8 +1,9 @@
-import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { normalizeText, readRepoTextFile, sha256Hex, SourceFileError } from "../src/parse/files.js";
+import { writeTextFileAtomic } from "../src/parse/write.js";
 
 describe("normalizeText", () => {
   it("strips a BOM and folds CRLF/CR to LF", () => {
@@ -115,5 +116,51 @@ describe("readRepoTextFile", () => {
     } finally {
       await rm(outsideDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("writeTextFileAtomic", () => {
+  let dir: string | undefined;
+  afterEach(async () => {
+    if (dir) await rm(dir, { recursive: true, force: true });
+    dir = undefined;
+  });
+
+  async function mkRoot(files: Record<string, string> = {}): Promise<string> {
+    dir = path.join(tmpdir(), `runtime-write-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    await mkdir(dir, { recursive: true });
+    for (const [rel, content] of Object.entries(files)) {
+      const abs = path.join(dir, rel);
+      await mkdir(path.dirname(abs), { recursive: true });
+      await writeFile(abs, content);
+    }
+    return dir;
+  }
+
+  it("writes the target exactly and leaves no temp files", async () => {
+    const root = await mkRoot();
+    await writeTextFileAtomic(root, "gen/CLAUDE.md", "# hi\r\n");
+    expect(await readFile(path.join(root, "gen", "CLAUDE.md"), "utf8")).toBe("# hi\r\n");
+    const names = await readdir(path.join(root, "gen"));
+    expect(names).toEqual(["CLAUDE.md"]);
+  });
+
+  it("overwrites an existing file atomically, still without temp litter", async () => {
+    const root = await mkRoot({ "out.md": "old\n" });
+    await writeTextFileAtomic(root, "out.md", "new\n");
+    expect(await readFile(path.join(root, "out.md"), "utf8")).toBe("new\n");
+    const names = await readdir(root);
+    expect(names.filter((name) => name.includes(".runtime-tmp-"))).toEqual([]);
+  });
+
+  it("a failed rename rejects and leaves no temp litter behind", async () => {
+    // A directory at the target path makes the final rename fail on every
+    // platform — reproducing the failure without platform-specific tricks.
+    const root = await mkRoot({ "CLAUDE.md/keep": "x\n" });
+    await expect(writeTextFileAtomic(root, "CLAUDE.md", "# hi\n")).rejects.toThrow();
+    const names = await readdir(root);
+    expect(names.filter((name) => name.includes(".runtime-tmp-"))).toEqual([]);
+    // the directory is untouched
+    expect(await readFile(path.join(root, "CLAUDE.md", "keep"), "utf8")).toBe("x\n");
   });
 });
