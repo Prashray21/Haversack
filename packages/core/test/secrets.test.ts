@@ -30,6 +30,20 @@ describe("scanText", () => {
     expect(findings[0]?.line).toBe(1);
   });
 
+  it("does not flag environment reads — the sanctioned credential pattern (BUG-008)", () => {
+    // Reading credentials from the environment is exactly what the rules
+    // mandate; the generic rule must not block it.
+    const lines = [
+      "const apiKey = process.env.OPENAI_API_KEY;",
+      "const token = process.env.GH_TOKEN ?? '';",
+      "if (!apiKey) throw new Error('no key');",
+    ];
+    expect(scanText(lines.join("\n"))).toEqual([]);
+    // but a literal assignment right next to it is still caught (two rules
+    // legitimately match one line — see the two-rules test above)
+    expect(scanText("const apiKey = 'sk-abcdefghijklmnopqrst';")).toHaveLength(2); // runtime:allow-secret — scanner fixture
+  });
+
   it("never includes the secret value in any snippet, even with two rules on one line", () => {
     // `token: ghp_…` matches both github-token and the generic assignment rule.
     const findings = scanText(`token: ${GITHUB_TOKEN}\n`); // runtime:allow-secret — scanner fixture

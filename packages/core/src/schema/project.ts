@@ -119,12 +119,17 @@ export const integrationSchema = z.strictObject({
 
 export const modelPolicySchema = z.strictObject({
   pin: z.boolean().default(true),
+  /** Judge model id (F2.2). Comes from config — never hardcoded. Pinned and recorded per run. */
+  model: z.string().min(1).max(120).optional(),
   budget: z
     .strictObject({
       /** USD cap for one check run. */
       usd_per_run: z.number().positive().optional(),
       /** USD cap per project per calendar month (UTC). */
       usd_per_month: z.number().positive().optional(),
+      /** Per-1M-token prices used to compute USD from token usage; recorded per run (D4). */
+      usd_per_1m_input: z.number().positive().optional(),
+      usd_per_1m_output: z.number().positive().optional(),
     })
     .optional(),
 });

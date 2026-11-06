@@ -13,4 +13,8 @@ export * from "./drift/detect.js";
 export * from "./secrets/scan.js";
 export * from "./checks/types.js";
 export * from "./checks/glob.js";
+export * from "./checks/hash.js";
 export * from "./checks/static.js";
+export * from "./llm/transport.js";
+export * from "./llm/judge.js";
+export * from "./llm/ledger.js";

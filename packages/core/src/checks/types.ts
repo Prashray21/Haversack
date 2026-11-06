@@ -30,6 +30,16 @@ export interface CheckFinding {
   fix?: string;
 }
 
+/** Token/cost accounting for one judge-backed check (D4, §11). */
+export interface CheckUsage {
+  /** The model that actually served the judge call, as recorded by the provider. */
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  /** USD cost computed from the configured prices; undefined when prices are unset. */
+  usd: number | undefined;
+}
+
 /** One evaluation outcome for one check. */
 export interface CheckResult {
   checkId: string;
@@ -37,6 +47,12 @@ export interface CheckResult {
   severity: Severity;
   findings: CheckFinding[];
   skippedReason?: SkippedReason;
+  /** Human-readable detail for skipped results (why, exactly). */
+  detail?: string;
+  /** sha256 over the canonical check body — recorded in every run result (F2.2). */
+  bodySha256?: string;
+  /** Token/cost accounting; present only when the judge ran. */
+  usage?: CheckUsage;
 }
 
 /**

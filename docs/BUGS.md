@@ -102,3 +102,20 @@ guards the class of bug. Newest last.
   with the same ignore list; findings block the sync (exit 3, redacted).
 - **Guard:** `packages/cli/test/sync.test.ts` — "a secret in project.yaml
   itself blocks the sync with redacted findings (exit 3)".
+
+## BUG-008 — the secret gate flagged the sanctioned environment-read idiom (2026-11-07, M6)
+
+- **Symptom:** `runtime check` exited 3 on
+  `const apiKey = process.env.OPENAI_API_KEY;` in the CLI's own source —
+  the generic-credential rule matched the assignment's "value"
+  (`process.env.OPENAI_API_KEY`). Reading credentials from the environment is
+  the pattern the project's own rules mandate; the gate blocked the sanctioned
+  idiom (found live while wiring the M6 judge).
+- **Root cause:** the generic assignment rule captured anything after `=`/`:`
+  without distinguishing an environment *reference* from a secret *literal*.
+- **Fix:** `packages/core/src/secrets/scan.ts` skips matches whose captured
+  value starts with `process.env.` — a literal right next to it is still
+  caught.
+- **Guard:** `packages/core/test/secrets.test.ts` — "does not flag environment
+  reads — the sanctioned credential pattern (BUG-008)" (failed against the
+  unfixed scanner before the fix landed; asserts literals are still caught).

@@ -4,13 +4,25 @@ import {
   CHECK_TIME_BUDGET_MS,
   LoadError,
   compileIgnorePatterns,
+  currentMonthUtc,
+  fetchTransport,
+  hashCheckBody,
   loadProject,
+  matchesPath,
+  readLedger,
   readRepoTextFile,
+  recordSpend,
+  runJudge,
   runStaticChecks,
   scanFiles,
+  type BudgetLedger,
   type CheckedFile,
   type CheckResult,
+  type DiffFile,
   type FileSecretFinding,
+  type LlmCheck,
+  type LlmTransport,
+  type ProjectConfig,
 } from "@runtime/core";
 
 export interface CheckOptions {
@@ -20,6 +32,8 @@ export interface CheckOptions {
   json: boolean;
   stdout: (line: string) => void;
   stderr: (line: string) => void;
+  /** Injectable for tests; defaults to the real fetch transport. */
+  llmTransport?: LlmTransport;
 }
 
 /**
@@ -105,15 +119,7 @@ async function checkInner(options: CheckOptions): Promise<number> {
   const results: CheckResult[] = runStaticChecks(staticChecks, files, {
     timeBudgetMs: CHECK_TIME_BUDGET_MS,
   });
-  for (const check of llmChecks) {
-    results.push({
-      checkId: check.id,
-      status: "skipped",
-      severity: check.severity,
-      findings: [],
-      skippedReason: "llm_unavailable",
-    });
-  }
+  results.push(...(await runLlmChecks(llmChecks, { config, cwd: options.cwd, base: options.base, changedLines, transport: options.llmTransport ?? fetchTransport() })));
 
   if (options.json) {
     stdout(JSON.stringify({ project: config.project, mode, results, secrets }, null, 2));
@@ -123,6 +129,175 @@ async function checkInner(options: CheckOptions): Promise<number> {
   if (secrets.length > 0) return 3;
   if (results.some((result) => result.status === "fail" && result.severity === "block")) return 1;
   return 0;
+}
+
+/* ── LLM-judged checks (F2.2, F2.6, D4) ─────────────────────── */
+
+interface LlmRunContext {
+  config: ProjectConfig;
+  cwd: string;
+  base: string | undefined;
+  changedLines: Map<string, number[]> | undefined;
+  transport: LlmTransport;
+}
+
+/**
+ * LLM-judged checks run ONLY on a diff (`--base`): F2.6 requires changed
+ * files, and whole-file mode has no diff to judge. Each check runs only on
+ * changed files matching its `paths`. Every gate that fails yields `skipped`
+ * with a reason — never a pass (D13).
+ */
+async function runLlmChecks(checks: LlmCheck[], context: LlmRunContext): Promise<CheckResult[]> {
+  const { config, cwd, base, changedLines } = context;
+  const results: CheckResult[] = [];
+
+  for (const check of checks) {
+    const bodySha256 = hashCheckBody(check);
+
+    if (base === undefined || changedLines === undefined) {
+      results.push({
+        checkId: check.id,
+        status: "skipped",
+        severity: check.severity,
+        findings: [],
+        skippedReason: "llm_unavailable",
+        detail: "llm checks evaluate a diff — re-run with `runtime check --base <ref>` (F2.6 cost control: changed files only)",
+        bodySha256,
+      });
+      continue;
+    }
+
+    // Scope: changed files matching the check's paths, with their added lines.
+    const diffFiles: DiffFile[] = [];
+    for (const [filePath, lines] of changedLines) {
+      const includes = check.paths;
+      if (!matchesPath(filePath, includes, [])) continue;
+      const content = await readDiffFileContent(cwd, filePath);
+      if (content === undefined) continue;
+      const allLines = content.split("\n");
+      diffFiles.push({
+        path: filePath,
+        addedLines: lines
+          .filter((line) => line >= 1 && line <= allLines.length)
+          .map((line) => ({ line, text: allLines[line - 1] ?? "" })),
+      });
+    }
+    if (diffFiles.length === 0) {
+      results.push({
+        checkId: check.id,
+        status: "skipped",
+        severity: check.severity,
+        findings: [],
+        skippedReason: "no_matching_files",
+        detail: "no changed files match this check's paths",
+        bodySha256,
+      });
+      continue;
+    }
+
+    // Configuration gates — every one yields a specific skipped reason.
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (apiKey === undefined || apiKey.length === 0) {
+      results.push(skippedLlm(check, bodySha256, "OPENAI_API_KEY is not set (the key comes from the environment only)"));
+      continue;
+    }
+    const model = config.model_policy.model;
+    if (model === undefined) {
+      results.push(skippedLlm(check, bodySha256, "model_policy.model is not set in project.yaml"));
+      continue;
+    }
+    const prices = config.model_policy.budget;
+    if (prices?.usd_per_1m_input === undefined || prices?.usd_per_1m_output === undefined) {
+      results.push(skippedLlm(check, bodySha256, "model_policy.budget.usd_per_1m_input / usd_per_1m_output are not set — without prices there is no budget accounting (D4)"));
+      continue;
+    }
+
+    // Budget: remaining month spend from the machine-local ledger (D4).
+    const month = currentMonthUtc();
+    const ledger: BudgetLedger | undefined = await readLedger(cwd);
+    const monthSpend = ledger?.months[month];
+    const usdPerMonthCents = prices.usd_per_month !== undefined ? Math.round(prices.usd_per_month * 100) : undefined;
+    const remainingMonthCents =
+      monthSpend !== undefined && usdPerMonthCents !== undefined ? usdPerMonthCents - monthSpend.usdCents : 1;
+
+    const outcome = await runJudge(check, diffFiles, {
+      transport: context.transport,
+      config: { model, apiKey },
+      budget: {
+        remainingMonthCents,
+        usdPerRunCents: prices.usd_per_run !== undefined ? Math.round(prices.usd_per_run * 100) : undefined,
+      },
+      prices: { usdPer1mInput: prices.usd_per_1m_input, usdPer1mOutput: prices.usd_per_1m_output },
+    });
+
+    // Record actual spend (even for skipped-by-cap outcomes: it was consumed).
+    if (outcome.usage.inputTokens > 0 || outcome.usage.outputTokens > 0) {
+      await recordSpend(cwd, {
+        project: config.project,
+        month,
+        inputTokens: outcome.usage.inputTokens,
+        outputTokens: outcome.usage.outputTokens,
+        usdCents: outcome.usage.usdCents,
+      });
+    }
+
+    if (outcome.status === "skipped") {
+      results.push({
+        checkId: check.id,
+        status: "skipped",
+        severity: check.severity,
+        findings: [],
+        skippedReason: outcome.skippedReason,
+        detail: outcome.detail,
+        bodySha256,
+        usage: {
+          model: outcome.usage.model,
+          inputTokens: outcome.usage.inputTokens,
+          outputTokens: outcome.usage.outputTokens,
+          usd: outcome.usage.usdCents / 100,
+        },
+      });
+      continue;
+    }
+
+    results.push({
+      checkId: check.id,
+      status: outcome.status,
+      severity: check.severity,
+      findings: outcome.findings,
+      bodySha256,
+      usage: {
+        model: outcome.usage.model,
+        inputTokens: outcome.usage.inputTokens,
+        outputTokens: outcome.usage.outputTokens,
+        usd: outcome.usage.usdCents / 100,
+      },
+    });
+  }
+
+  return results;
+}
+
+function skippedLlm(check: LlmCheck, bodySha256: string, detail: string): CheckResult {
+  return {
+    checkId: check.id,
+    status: "skipped",
+    severity: check.severity,
+    findings: [],
+    skippedReason: "llm_unavailable",
+    detail,
+    bodySha256,
+  };
+}
+
+/** Reads the current on-disk content of a changed file (added lines are indexed into it). */
+async function readDiffFileContent(cwd: string, relPath: string): Promise<string | undefined> {
+  try {
+    const text = await readRepoTextFile(cwd, relPath, CHECK_MAX_FILE_BYTES);
+    return text.content;
+  } catch {
+    return undefined; // deleted or unreadable files have no added lines to show
+  }
 }
 
 /* ── rendering ──────────────────────────────────────────────── */
@@ -139,18 +314,22 @@ function renderHuman(
   stdout("");
   for (const result of results) {
     const label = `${result.checkId} (${result.severity})`;
+    const usageSuffix = result.usage
+      ? ` · ${result.usage.model} ${result.usage.inputTokens}+${result.usage.outputTokens} tok` +
+        (result.usage.usd !== undefined ? ` $${result.usage.usd.toFixed(4)}` : "")
+      : "";
     if (result.status === "skipped") {
-      stdout(`${ICON.skipped} ${label} — skipped (${describeSkipped(result)})`);
+      stdout(`${ICON.skipped} ${label} — skipped (${result.detail ?? describeSkipped(result)})${usageSuffix}`);
       continue;
     }
     if (result.status === "fail") {
-      stdout(`${ICON.fail} ${label} — ${result.findings.length} finding(s)`);
+      stdout(`${ICON.fail} ${label} — ${result.findings.length} finding(s)${usageSuffix}`);
       for (const finding of result.findings) {
         stdout(`    ${finding.file}:${finding.line} — ${finding.message}`);
         if (finding.fix) stdout(`      fix: ${finding.fix}`);
       }
     } else {
-      stdout(`${ICON.pass} ${label} — no findings`);
+      stdout(`${ICON.pass} ${label} — no findings${usageSuffix}`);
     }
   }
 

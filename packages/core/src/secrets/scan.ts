@@ -84,6 +84,13 @@ export function scanText(text: string, options: { ignore?: RegExp[] } = {}): Sec
         // For grouped patterns (the generic assignment rule) only the value
         // group is the secret; for the rest the whole match is.
         const value = match.length > 1 ? (match[match.length - 1] ?? match[0]) : match[0];
+        // Reading a credential from the environment is the sanctioned pattern
+        // (BUG-008): `const apiKey = process.env.OPENAI_API_KEY` holds no
+        // secret in source — never flag it.
+        if (value.startsWith("process.env.")) {
+          if (match[0].length === 0) regex.lastIndex++;
+          continue;
+        }
         if (value.length > 0) {
           matches.push({ ruleId: id, value });
           ruleIds.add(id);

@@ -1,5 +1,6 @@
 import type { CheckedFile, CheckFinding, CheckResult } from "./types.js";
 import { matchesPath } from "./glob.js";
+import { hashCheckBody } from "./hash.js";
 import type { StaticCheck } from "../schema/project.js";
 
 /**
@@ -31,6 +32,7 @@ function runStaticCheck(check: StaticCheck, files: CheckedFile[], timeBudgetMs?:
       severity: check.severity,
       findings: [],
       skippedReason: "no_matching_files",
+      bodySha256: hashCheckBody(check),
     };
   }
 
@@ -45,6 +47,7 @@ function runStaticCheck(check: StaticCheck, files: CheckedFile[], timeBudgetMs?:
       severity: check.severity,
       findings: [],
       skippedReason: "invalid_pattern",
+      bodySha256: hashCheckBody(check),
     };
   }
 
@@ -65,6 +68,7 @@ function runStaticCheck(check: StaticCheck, files: CheckedFile[], timeBudgetMs?:
           severity: check.severity,
           findings: [],
           skippedReason: "time_budget_exceeded",
+          bodySha256: hashCheckBody(check),
         };
       }
       const line = lines[lineNumber - 1];
@@ -87,5 +91,6 @@ function runStaticCheck(check: StaticCheck, files: CheckedFile[], timeBudgetMs?:
     status: findings.length > 0 ? "fail" : "pass",
     severity: check.severity,
     findings,
+    bodySha256: hashCheckBody(check),
   };
 }
