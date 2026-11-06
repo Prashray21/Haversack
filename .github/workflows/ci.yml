@@ -51,3 +51,35 @@ jobs:
         run: node packages/cli/dist/main.js sync --verify
       - name: runtime check (this repo)
         run: node packages/cli/dist/main.js check
+
+  # The standalone SEA binary must be able to run the repo's own checks too
+  # (M3): same commands as the dogfood job, through the single executable.
+  binary-smoke:
+    name: SEA binary smoke (ubuntu)
+    runs-on: ubuntu-latest
+    env:
+      ESBUILD_VERSION: "0.28.2"
+      SEA_FUSE: "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Enable pnpm via corepack
+        run: corepack enable pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build
+        run: pnpm build
+      - name: Assemble the binary (bundle + SEA blob + postject)
+        run: |
+          npx -y esbuild@${{ env.ESBUILD_VERSION }} packages/cli/dist/main.js --bundle --platform=node --format=cjs --outfile=build/sea-entry.cjs
+          node --experimental-sea-config scripts/sea/sea-config.json
+          cp "$(which node)" build/runtime-linux-x64
+          npx -y postject build/runtime-linux-x64 NODE_SEA_BLOB build/sea-prep.blob --sentinel-fuse ${{ env.SEA_FUSE }}
+      - name: runtime --version (binary)
+        run: ./build/runtime-linux-x64 --version
+      - name: runtime sync --verify (binary)
+        run: ./build/runtime-linux-x64 sync --verify
+      - name: runtime check (binary)
+        run: ./build/runtime-linux-x64 check
