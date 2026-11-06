@@ -57,8 +57,10 @@ Method: every claim cites a file path plus a passing test name or pasted command
 ## 3. Completion numbers (method shown)
 
 1. **Implemented (P0):** Done 6 / 19, Partial 3 / 19, Not started 10 / 19 — counted from the §7 table above (F1.1–F1.5, F2.1–F2.7, F5.1–F5.3, F6.1–F6.4). §8 adds: 3 of 8 scope items fully Done, 2 Partial, 3 Not started.
-2. **Verified by automated tests:** 8 of the 6 Done + 3 Partial P0 rows cite named passing tests (F1.2, F1.3, F1.5, F2.1-partial, F2.3, F2.4, F2.7, F1.1-partial). Spec v1 also test-verified.
-3. **Verified live (ran on a real repo or service):** `runtime sync` on the real `examples/sample-project` (exit 0, "everything in sync"); the standalone SEA binary `runtime.exe --version` + `runtime sync --verify` (exit 0, pasted in session); secret-scan audit over the real working tree + git history (16 synthetic fixture findings). **Not verified live:** `runtime check` (only in temp fixture repos via tests), GitHub App (doesn't exist), all dashboard items.
+2. **Verified by automated tests:** 8 of the 9 Done-or-Partial P0 rows (6 Done + 3 Partial) cite named passing tests (F1.1-partial, F1.2, F1.3, F1.5, F2.1-partial, F2.3, F2.4, F2.7). The exception is F2.6, whose evidence is the source file only. Spec v1 also test-verified.
+3. **Completion summary (P0):** Done 6 / 19; Done + Partial 9 / 19.
+4. **Rules-as-CI on PRs:** enforcement on pull requests does not exist until the GitHub App exists — today `runtime check` runs locally only and no PR is gated.
+5. **Verified live (ran on a real repo or service):** `runtime sync` on the real `examples/sample-project` (exit 0, "everything in sync"); the standalone SEA binary `runtime.exe --version` + `runtime sync --verify` (exit 0, pasted in session); secret-scan audit over the real working tree + git history (16 synthetic fixture findings). **Not verified live:** `runtime check` (only in temp fixture repos via tests), GitHub App (doesn't exist), all dashboard items.
 
 ## 4. Decision log D1–D13
 
