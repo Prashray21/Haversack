@@ -6,11 +6,11 @@ const GITHUB_TOKEN = `ghp_${"A".repeat(36)}`;
 describe("scanText", () => {
   it("detects known token formats", () => {
     const text = [
-      "aws = AKIAIOSFODNN7EXAMPLE",
+      "aws = AKIAIOSFODNN7EXAMPLE", // runtime:allow-secret — AWS documented example key
       `gh = ${GITHUB_TOKEN}`,
       "stripe = sk_live_" + "a".repeat(20),
-      "slack = xoxb-1234567890abcdef",
-      "-----BEGIN RSA PRIVATE KEY-----",
+      "slack = xoxb-1234567890abcdef", // runtime:allow-secret — scanner fixture
+      "-----BEGIN RSA PRIVATE KEY-----", // runtime:allow-secret — scanner fixture
       `openai = sk-${"x".repeat(24)}`,
     ].join("\n");
 
@@ -24,7 +24,7 @@ describe("scanText", () => {
   });
 
   it("detects generic credential assignments", () => {
-    const findings = scanText("password = hunter2hunter2\n");
+    const findings = scanText("password = hunter2hunter2\n"); // runtime:allow-secret — scanner fixture
     expect(findings).toHaveLength(1);
     expect(findings[0]?.ruleId).toBe("generic-credential-assignment");
     expect(findings[0]?.line).toBe(1);
@@ -32,7 +32,7 @@ describe("scanText", () => {
 
   it("never includes the secret value in any snippet, even with two rules on one line", () => {
     // `token: ghp_…` matches both github-token and the generic assignment rule.
-    const findings = scanText(`token: ${GITHUB_TOKEN}\n`);
+    const findings = scanText(`token: ${GITHUB_TOKEN}\n`); // runtime:allow-secret — scanner fixture
     expect(findings.length).toBe(2);
     for (const finding of findings) {
       expect(finding.snippet).toContain("[REDACTED]");
@@ -57,7 +57,7 @@ describe("scanText", () => {
   });
 
   it("redacts the value but keeps the key for generic assignments", () => {
-    const findings = scanText("password = hunter2hunter2\n");
+    const findings = scanText("password = hunter2hunter2\n"); // runtime:allow-secret — scanner fixture
     expect(findings[0]?.snippet).toContain("password = [REDACTED]");
     expect(findings[0]?.snippet).not.toContain("hunter2hunter2");
   });

@@ -190,7 +190,7 @@ describe("runtime sync — writer", () => {
   it("secrets in sources block the sync with redacted findings (exit 3)", async () => {
     const dir = await project({
       "project.yaml": BASE_YAML,
-      "rules/coding.md": `password = supersecret12345\n`,
+      "rules/coding.md": `password = supersecret12345\n`, // runtime:allow-secret — scanner fixture
     });
 
     const io = capture();
@@ -226,7 +226,7 @@ secrets:
     - pattern: 'supersecret\\d+'
       reason: documented example value
 `,
-      "rules/coding.md": "password = supersecret12345\n",
+      "rules/coding.md": "password = supersecret12345\n", // runtime:allow-secret — scanner fixture
     });
 
     const io = capture();

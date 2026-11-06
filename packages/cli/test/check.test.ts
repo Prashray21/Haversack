@@ -176,7 +176,7 @@ checks:
       {
         "project.yaml": BASE_YAML,
         "rules/coding.md": "x\n",
-        "src/config.ts": "const password = supersecret12345;\n",
+        "src/config.ts": "const password = supersecret12345;\n", // runtime:allow-secret — scanner fixture
       },
       true,
     );

@@ -16,7 +16,7 @@ const cred = execFileSync(
   ["credential", "fill"],
   { input: "protocol=https\nhost=github.com\n\n", encoding: "utf8", windowsHide: true },
 );
-const token = /^password=(.*)$/m.exec(cred)?.[1];
+const token = /^password=(.*)$/m.exec(cred)?.[1]; // runtime:allow-secret — extracts the stored credential, never embeds one
 if (!token) {
   console.error("no stored GitHub credential found (git credential fill)");
   process.exit(1);
