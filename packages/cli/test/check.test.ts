@@ -240,3 +240,53 @@ checks:
     expect(io.err.join("\n")).toContain("not a valid git ref");
   });
 });
+
+describe("runtime check — F2.6 cost controls", () => {
+  it("static checks run first; the llm check is reported skipped after all static results (F2.6)", async () => {
+    const repo = await makeRepo(
+      {
+        "project.yaml": BASE_YAML,
+        "rules/coding.md": "x\n",
+        "src/app.ts": "console.log(1);\n",
+      },
+      true,
+    );
+    const io = capture();
+    const code = await check(repo, io, { json: true });
+    expect(code).toBe(1);
+
+    const parsed = JSON.parse(io.out.join("\n")) as {
+      results: Array<{ checkId: string; status: string }>;
+    };
+    // static results first, in project.yaml order; the llm check is last,
+    // skipped — never executed, never counted as a pass
+    expect(parsed.results.map((r) => [r.checkId, r.status])).toEqual([
+      ["no-console-log", "fail"],
+      ["no-todo", "pass"],
+      ["rls-required-on-new-tables", "skipped"],
+    ]);
+  });
+
+  it("a static check only evaluates files matching its path globs (F2.6 path scoping)", async () => {
+    const repo = await makeRepo(
+      {
+        "project.yaml": BASE_YAML,
+        "rules/coding.md": "x\n",
+        "src/app.ts": "console.log(1);\n",
+        "docs/notes.md": "console.log(1);\n",
+      },
+      true,
+    );
+    const io = capture();
+    const code = await check(repo, io, { json: true });
+    expect(code).toBe(1);
+
+    const parsed = JSON.parse(io.out.join("\n")) as {
+      results: Array<{ checkId: string; status: string; findings: Array<{ file: string }> }>;
+    };
+    const consoleCheck = parsed.results.find((r) => r.checkId === "no-console-log");
+    expect(consoleCheck?.status).toBe("fail");
+    // the identical violation in docs/notes.md is outside the check's path — not reported
+    expect(consoleCheck?.findings.map((f) => f.file)).toEqual(["src/app.ts"]);
+  });
+});

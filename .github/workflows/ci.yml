@@ -30,3 +30,24 @@ jobs:
         run: pnpm typecheck
       - name: Test
         run: pnpm test
+
+  # Dogfood (M2): the repo's own project.yaml must stay in sync and pass its
+  # own checks — the product enforces itself on every push and PR.
+  dogfood:
+    name: dogfood (sync --verify + check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Enable pnpm via corepack
+        run: corepack enable pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build
+        run: pnpm build
+      - name: runtime sync --verify (this repo)
+        run: node packages/cli/dist/main.js sync --verify
+      - name: runtime check (this repo)
+        run: node packages/cli/dist/main.js check
