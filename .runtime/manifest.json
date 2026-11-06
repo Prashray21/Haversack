@@ -1,5 +1,15 @@
 {
   "files": {
+    ".cursor/rules/runtime.mdc": {
+      "adapter": "cursor",
+      "adapterVersion": 1,
+      "sha256": "e854a0c4ea50a911f0a28a7fc61dd889eaf0bd9a8c2fd25a79405f80f41ae066"
+    },
+    ".github/copilot-instructions.md": {
+      "adapter": "copilot",
+      "adapterVersion": 1,
+      "sha256": "fcd089970aa462fbdcdecfe1ffad908cea1d93fdac052931970d704a758c980c"
+    },
     "CLAUDE.md": {
       "adapter": "claude-code",
       "adapterVersion": 1,

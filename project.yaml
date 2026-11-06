@@ -11,7 +11,7 @@ rules:
   - rules/coding.md
   - rules/process.md
 
-targets: [claude-code]
+targets: [claude-code, cursor, copilot]
 
 checks:
   - id: no-console-in-src

@@ -1,15 +1,19 @@
 import type { TargetAdapter } from "./types.js";
 import type { TargetId } from "../schema/project.js";
 import { claudeCodeAdapter } from "./claude-code.js";
+import { cursorAdapter } from "./cursor.js";
+import { copilotAdapter } from "./copilot.js";
 
 /**
  * The only wiring point for a new target: add an adapter file under
  * adapters/, import it here, and add one line to this record (PRD F1.5).
+ * Cursor and Copilot formats are verified against official docs
+ * (docs/agents-md-findings.md) before registration.
  */
 const ADAPTERS: Partial<Record<TargetId, TargetAdapter>> = {
   "claude-code": claudeCodeAdapter,
-  // "cursor": cursorAdapter,    ← AGENTS.md research gate first (change #8)
-  // "copilot": copilotAdapter,
+  cursor: cursorAdapter,
+  copilot: copilotAdapter,
 };
 
 export function tryGetAdapter(id: TargetId): TargetAdapter | undefined {

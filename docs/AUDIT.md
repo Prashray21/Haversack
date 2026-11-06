@@ -6,7 +6,7 @@ Method: every claim cites a file path plus a passing test name or pasted command
 
 | ID | Requirement | Status | Evidence | What remains |
 | --- | --- | --- | --- | --- |
-| F1.1 | Adapters for ≥3 targets | **Partial** | `packages/core/src/adapters/claude-code.ts` + `packages/core/test/claude-code.test.ts` ("generates exactly one file at CLAUDE.md"); `packages/core/test/registry.test.ts` ("registers claude-code") | Cursor + Copilot adapters (M7, docs-gated) |
+| F1.1 | Adapters for ≥3 targets | **Done** (3/3) | claude-code → CLAUDE.md (`packages/core/src/adapters/claude-code.ts`); cursor → `.cursor/rules/runtime.mdc` (`packages/core/src/adapters/cursor.ts`, header after frontmatter, format verified per `docs/agents-md-findings.md`); copilot → `.github/copilot-instructions.md` (`packages/core/src/adapters/copilot.ts`); tests: `packages/core/test/cursor.test.ts` (9 incl. placement + determinism), `packages/core/test/registry.test.ts` ("registers all three MVP targets"); dogfooded live on this repo and examples/sample-project | — |
 | F1.2 | `sync` shows diff before writing | **Done** | `packages/cli/src/commands/sync.ts` (`renderDiff`, prompt); `packages/cli/test/sync.test.ts` ("prompts before writing and aborts on anything but yes") | — |
 | F1.3 | Generated files marked; hand edits → drift | **Done** | `packages/core/src/adapters/header.ts`, `packages/core/src/drift/detect.ts`; `packages/core/test/detect.test.ts` ("hand-edited: disk differs from the last sync"); `packages/cli/test/sync.test.ts` ("hand-edited generated files are skipped as drift unless --force") | — |
 | F1.4 | Rule priority; conflicts flagged at compile time | **Not started** | No lower-level instruction source exists to conflict with; nothing coded | Needs user-level config concept; deferred |
@@ -34,7 +34,7 @@ Method: every claim cites a file path plus a passing test name or pasted command
 | CLI `sync` | **Done** | `packages/cli/src/commands/sync.ts`; 15 tests in `packages/cli/test/sync.test.ts`; live run on `examples/sample-project` (exit 0, "everything in sync (1 file(s) managed)") | — |
 | CLI `check` | **Done** | `packages/cli/src/commands/check.ts`; 9 tests; see F2.7 | — |
 | CLI `join` | **Done** | `packages/cli/src/commands/join.ts`; 6 tests; live timed run on the sample project (exit 0, 0.1s) | — |
-| 3 target adapters | **Partial** (1/3) | claude-code registered + tested | Cursor, Copilot (M7, docs-gated) |
+| 3 target adapters | **Done** (3/3) | claude-code, cursor, copilot registered + tested; live-generated on this repo and examples/sample-project | — |
 | GitHub App (static + LLM PR checks) | **Not started** | `apps/github-app/README.md` stub only | Out of scope this session; ~5–8 dev-days |
 | Minimal dashboard | **Not started** | — | Out of scope this session; ~3–5 dev-days |
 | `project.yaml` spec v1 | **Done** | `packages/core/src/schema/project.ts`; `packages/core/test/schema.test.ts` (10 tests) | — |
@@ -56,9 +56,9 @@ Method: every claim cites a file path plus a passing test name or pasted command
 
 ## 3. Completion numbers (method shown)
 
-1. **Implemented (P0):** Done 6 / 19, Partial 3 / 19, Not started 10 / 19 — counted from the §7 table above (F1.1–F1.5, F2.1–F2.7, F5.1–F5.3, F6.1–F6.4). §8 adds: 3 of 8 scope items fully Done, 2 Partial, 3 Not started.
-2. **Verified by automated tests:** 9 of the 9 Done-or-Partial P0 rows (6 Done + 3 Partial) cite named passing tests (F1.1-partial, F1.2, F1.3, F1.5, F2.1-partial, F2.3, F2.4, F2.6-partial, F2.7). Spec v1 also test-verified.
-3. **Completion summary (P0):** Done 6 / 19; Done + Partial 9 / 19.
+1. **Implemented (P0):** Done 7 / 19, Partial 2 / 19, Not started 10 / 19 — counted from the §7 table above (F1.1–F1.5, F2.1–F2.7, F5.1–F5.3, F6.1–F6.4). §8 adds: 3 of 8 scope items fully Done, 2 Partial, 3 Not started.
+2. **Verified by automated tests:** 9 of the 9 Done-or-Partial P0 rows (7 Done + 2 Partial) cite named passing tests (F1.1-partial, F1.2, F1.3, F1.5, F2.1-partial, F2.3, F2.4, F2.6-partial, F2.7). Spec v1 also test-verified.
+3. **Completion summary (P0):** Done 7 / 19; Done + Partial 9 / 19.
 4. **Rules-as-CI on PRs:** enforcement on pull requests does not exist until the GitHub App exists — today `runtime check` runs locally only and no PR is gated.
 5. **Verified live (ran on a real repo or service):** `runtime sync` on the real `examples/sample-project` (exit 0, "everything in sync"); the standalone SEA binary `runtime.exe --version` + `runtime sync --verify` (exit 0, pasted in session); secret-scan audit over the real working tree + git history (16 synthetic fixture findings); the release pipeline end-to-end — throwaway tag `v0.0.2-test` on `90130ad` produced Release run `42277569102` (success, 2m07s, all 4 jobs green) publishing exactly 4 binaries + `SHA256SUMS.txt` with `isPrerelease: true`, macOS ad-hoc codesign exit 0 and per-OS smoke tests passing (release and tags deleted after inspection); **dogfooding (M2)** — this repo has a real `project.yaml` + `context/` + `rules/`; live runs: `runtime sync` exit 0 (wrote `CLAUDE.md` + manifest), `sync --verify` exit 0, `runtime check` exit 0 (3 checks pass; the gate's first run exited 3 and 9 intentional fixture/code lines got `runtime:allow-secret` markers), sample-project `check` exit 0 as a standalone git repo (in-place it exits 2 by design — subdir guard); **hardening live runs (M3)** — the locally built Windows SEA binary ran `--version`, `sync`, `sync --verify`, and `check` on this repo (all exit 0, write path included), a fresh clone installed with `--frozen-lockfile`, built, tested (133 passed) and ran the CLI green, and CI runs an ubuntu `binary-smoke` job (`.github/workflows/ci.yml`) plus the dogfood job on every push. **Not verified live:** GitHub App (doesn't exist), all dashboard items.
 
@@ -74,7 +74,7 @@ Method: every claim cites a file path plus a passing test name or pasted command
 | D6 | Done | `packages/cli/src/commands/sync.ts` + `check.ts` exit paths; tests assert 0/1/2/3 |
 | D7 | Done | `loadProject` warning; `packages/core/test/load.test.ts` ("warns that integrations are inert") |
 | D8 | Done | `packages/core/src/secrets/scan.ts`; `packages/core/test/secrets.test.ts` ("never includes the secret value in any snippet…", "does not flag environment reads — the sanctioned credential pattern (BUG-008)"); gate extended to project.yaml on sync (BUG-007) |
-| D9 | Partial | claude-code only; cursor/copilot pending M7 |
+| D9 | Done | All three MVP targets registered (`packages/core/src/adapters/registry.ts`); formats verified from official docs — see `docs/agents-md-findings.md` |
 | D10 | Partial | 20 KB warn implemented (`SIZE_WARN_BYTES` used in `sync.ts`); import mode is v1.1 by definition |
 | D11 | Not started | M4 |
 | D12 | Done | `LICENSE` (MIT), `"license": "MIT"` ×3, PRD §16 q5 answered |
@@ -82,9 +82,9 @@ Method: every claim cites a file path plus a passing test name or pasted command
 
 ## 5. Quality
 
-- **Tests:** core 121 (13 files), cli 50 (4 files) — 171 passed + 1 skipped live-judge, all green 2026-11-07.
+- **Tests:** core 128 (14 files), cli 50 (4 files) — 178 passed + 1 skipped live-judge, all green 2026-11-07.
 - **Hardening (M3):** symlink/junction escape rejected (`realpath` both sides), generated-header detection anchored (spoof guard), per-check cooperative time budget (1000 ms → `skipped`, never a pass; single-call residual risk documented in `packages/core/src/constants.ts`), binary-file skip, atomic writes (temp+rename) for generated files and the manifest, corrupt-manifest recovery, secret gate extended to `project.yaml`. Full details with regression tests in `docs/BUGS.md` (BUG-001…007).
-- **Untested modules:** `apps/github-app` (stub), `packages/cli/src/main.ts` (commander wiring — actions tested directly), `scripts/scan-secrets.mjs`, `scripts/license-report.mjs`, `scripts/gh-api.mjs` (operational scripts, run manually), Cursor `.mdc` header placement is implemented in `attachGeneratedHeader` and unit-tested, but no cursor adapter consumes it yet.
+- **Untested modules:** `apps/github-app` (stub), `packages/cli/src/main.ts` (commander wiring — actions tested directly), `scripts/scan-secrets.mjs`, `scripts/license-report.mjs`, `scripts/gh-api.mjs` (operational scripts, run manually).
 - **Known bugs:** none open; 7 found and fixed during M3 with regression tests (`docs/BUGS.md`), plus two CI-environment bugs fixed earlier (typecheck-before-build ordering; 8.3 short-path repo-root comparison).
 - **Dependency audit:** `pnpm audit` — 5 findings (3 moderate, 2 critical), all in the vitest dev toolchain (vitest/tinypool/@vitest/mocker < 4.1.12); dev-only, no runtime path in shipped artifacts. Fix requires a vitest 3→4 major bump — pending owner approval. License report: 100 packages, 0 flagged (`docs/dependency-licenses.md`).
 - **TODOs in our source:** none (`grep -rn "TODO|FIXME|XXX" packages/ --include="*.ts"` matches only `node_modules`).

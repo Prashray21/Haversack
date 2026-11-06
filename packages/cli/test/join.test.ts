@@ -64,10 +64,9 @@ describe("runtime join", () => {
     const out = io.out.join("\n");
     expect(out).toContain("join: setting up 'onboarding'");
     expect(out).toContain("wrote CLAUDE.md");
+    expect(out).toContain("wrote .cursor/rules/runtime.mdc");
     expect(out).toContain("setup report:");
-    expect(out).toContain("✓ targets synced: claude-code");
-    expect(out).toContain("no adapter implemented yet — nothing to sync for it");
-    expect(out).toContain("cursor");
+    expect(out).toContain("✓ targets synced: claude-code, cursor");
     expect(out).toContain("validated but inert in the MVP");
     expect(out).toContain("✓ verified: all generated files are in sync");
     expect(out).toMatch(/done in \d+\.\ds/);
@@ -84,7 +83,7 @@ describe("runtime join", () => {
     const second = capture();
     const code = await join(repo, second);
     expect(code, second.err.join("\n")).toBe(0);
-    expect(second.out.join("\n")).toContain("everything in sync (1 file(s) managed)");
+    expect(second.out.join("\n")).toContain("everything in sync (2 file(s) managed)");
     expect(second.out.join("\n")).toContain("✓ verified: all generated files are in sync");
   });
 

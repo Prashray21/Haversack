@@ -290,7 +290,7 @@ secrets:
     expect(io.err.join("\n")).toContain("unknown target 'nope'");
   });
 
-  it("--target for an adapter-less target warns and writes nothing (exit 0)", async () => {
+  it("--target limits generation to that target's file only", async () => {
     const dir = await project({
       "project.yaml": `runtime: 1
 project: demo
@@ -304,15 +304,15 @@ rules:
     const io = capture();
     const code = await sync(dir, io, { target: "cursor" });
     expect(code, io.err.join("\n")).toBe(0);
-    expect(io.out.join("\n")).toContain("no adapter registered for 'cursor'");
-    expect(io.out.join("\n")).toContain("nothing to generate");
+    expect(io.out.join("\n")).toContain("wrote .cursor/rules/runtime.mdc");
+    expect(io.out.join("\n")).not.toContain("wrote CLAUDE.md");
   });
 
   it("the sample project is in sync (committed artifacts stay converged)", async () => {
     const io = capture();
     const code = await sync(SAMPLE_DIR, io);
     expect(code).toBe(0);
-    expect(io.out.join("\n")).toContain("everything in sync (1 file(s) managed)");
+    expect(io.out.join("\n")).toContain("everything in sync (3 file(s) managed)");
   });
 
   it("a failed write exits 1 with a clear message and leaves no temp litter (M3)", async () => {
