@@ -116,8 +116,15 @@ export async function runSync(options: SyncOptions): Promise<number> {
     }
   }
 
-  // 5) Secret gate (D8): sources + generated output, findings always redacted.
-  const secretFindings = collectSecretFindings(config, sources, generated);
+  // 5) Secret gate (D8): the definition file itself + sources + generated
+  // output. Findings are always redacted.
+  const secretFindings = await collectSecretFindings(
+    options.cwd,
+    loaded.configPath,
+    config,
+    sources,
+    generated,
+  );
   if (secretFindings.length > 0) {
     stderr("✘ secret detected — nothing was written");
     for (const finding of secretFindings) {
@@ -280,11 +287,13 @@ function resolveTargets(
   return [parsed.data];
 }
 
-function collectSecretFindings(
+async function collectSecretFindings(
+  cwd: string,
+  configPath: string,
   config: ProjectConfig,
   sources: SourceFile[],
   generated: Array<GeneratedFile & { adapter: TargetAdapter }>,
-): SecretReport[] {
+): Promise<SecretReport[]> {
   const ignore = compileIgnorePatterns(config.secrets.ignore.map((entry) => entry.pattern));
   const reports: SecretReport[] = [];
   for (const source of sources) {
@@ -297,7 +306,23 @@ function collectSecretFindings(
       reports.push({ file: file.path, ...finding });
     }
   }
+  // The definition file is scanned too: a credential pasted into project.yaml
+  // (a prompt, a description) must block the sync just like any other source.
+  const configRaw = await readConfigRaw(cwd, configPath);
+  if (configRaw !== undefined) {
+    for (const finding of scanText(configRaw, { ignore })) {
+      reports.push({ file: configPath, ...finding });
+    }
+  }
   return reports;
+}
+
+async function readConfigRaw(cwd: string, configPath: string): Promise<string | undefined> {
+  try {
+    return normalizeText(await readFile(path.join(cwd, configPath), "utf8"));
+  } catch {
+    return undefined;
+  }
 }
 
 async function readIfExists(root: string, relPath: string): Promise<string | undefined> {

@@ -193,4 +193,75 @@ targets: [claude-code]
       expect(report).toMatch(/project\.yaml:\d+:\d+/);
     }
   });
+
+  it.each([
+    ["../outside.md", "traversal"],
+    ["/etc/passwd", "absolute path"],
+    ["ctx\\a.md", "backslash"],
+    ["C:\\temp\\a.md", "drive letter"],
+  ])("rejects a %s in context paths before any file is read (M3)", async (badPath) => {
+    const dir = await project({
+      "project.yaml": `runtime: 1
+project: demo
+targets: [claude-code]
+context:
+  - ${JSON.stringify(badPath)}
+rules: []
+`,
+    });
+    try {
+      await loadProject({ cwd: dir });
+      expect.unreachable(`expected LoadError for ${badPath}`);
+    } catch (error) {
+      expect((error as LoadError).report).toContain("must be a relative repo path with forward slashes");
+    }
+  });
+
+  it("rejects an unknown target id (M3)", async () => {
+    const dir = await project({
+      "project.yaml": `runtime: 1
+project: demo
+targets: [claude-code, windsurf]
+rules: []
+`,
+    });
+    try {
+      await loadProject({ cwd: dir });
+      expect.unreachable("expected LoadError");
+    } catch (error) {
+      expect((error as LoadError).report).toContain("targets");
+    }
+  });
+
+  it("rejects an invalid regex pattern with its position (M3)", async () => {
+    const dir = await project({
+      "project.yaml": `runtime: 1
+project: demo
+targets: [claude-code]
+checks:
+  - id: bad-regex
+    type: static
+    pattern: "([unclosed"
+    message: never compiles
+`,
+    });
+    try {
+      await loadProject({ cwd: dir });
+      expect.unreachable("expected LoadError");
+    } catch (error) {
+      const report = (error as LoadError).report;
+      expect(report).toContain("regular expression");
+      expect(report).toMatch(/project\.yaml:\d+:\d+/);
+    }
+  });
+
+  it("loads a project.yaml with BOM and CRLF line endings (M3)", async () => {
+    const dir = await project({
+      "project.yaml": `\uFEFF${GOOD_YAML.replace(/\n/g, "\r\n")}`,
+      "context/product.md": "ctx\n",
+      "rules/coding.md": "ok\n",
+    });
+    const result = await loadProject({ cwd: dir });
+    expect(result.config.project).toBe("demo");
+  });
 });

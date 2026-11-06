@@ -206,6 +206,26 @@ describe("runtime sync — writer", () => {
     await expect(readText(dir, "CLAUDE.md")).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("a secret in project.yaml itself blocks the sync with redacted findings (exit 3)", async () => {
+    const fixtureToken = `ghp_${"C".repeat(36)}`; // runtime:allow-secret — scanner fixture
+    const dir = await project({
+      "project.yaml": `${BASE_YAML}\n# bootstrap credential: ${fixtureToken}\n`,
+      "rules/coding.md": RULES_V1,
+    });
+
+    const io = capture();
+    const code = await sync(dir, io);
+
+    expect(code).toBe(3);
+    const errText = io.err.join("\n");
+    expect(errText).toContain("✘ secret detected — nothing was written");
+    expect(errText).toContain("project.yaml");
+    expect(errText).toContain("github-token");
+    expect(errText).toContain("[REDACTED]");
+    expect(errText).not.toContain(fixtureToken);
+    await expect(readText(dir, "CLAUDE.md")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("the runtime:allow-secret line marker skips a line", async () => {
     const dir = await project({
       "project.yaml": BASE_YAML,
