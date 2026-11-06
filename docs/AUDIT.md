@@ -18,7 +18,7 @@ Method: every claim cites a file path plus a passing test name or pasted command
 | F2.5 | Dismiss findings with reason; logged | **Not started** | — | Needs server/App state; out of scope this session |
 | F2.6 | Cost controls: static first; LLM only changed files; budget | **Partial** | `packages/cli/test/check.test.ts` ("static checks run first; the llm check is reported skipped after all static results (F2.6)", "a static check only evaluates files matching its path globs (F2.6 path scoping)"); `paths` scoping in schema; `model_policy.budget` in schema (`packages/core/src/schema/project.ts`) | Budget ledger + LLM execution (M6) |
 | F2.7 | `runtime check` locally | **Done** | `packages/cli/src/commands/check.ts`; 11 tests in `packages/cli/test/check.test.ts`; verified live on this repo — the dogfood CI job runs `runtime check` + `runtime sync --verify` on every push (`.github/workflows/ci.yml`) | — |
-| F5.1 | `init` scans repo, generates draft; ingests CLAUDE.md/AGENTS.md/.cursor/rules | **Not started** | — | M4 |
+| F5.1 | `init` scans repo, generates draft; ingests CLAUDE.md/AGENTS.md/.cursor/rules | **Done** | `packages/cli/src/commands/init.ts`; 9 tests in `packages/cli/test/init.test.ts` ("repo with CLAUDE.md: MOVES it into context/…, and sync works afterwards", "re-running init refuses…", "a secret in the ingested file blocks init…", empty/AGENTS.md/both/broken-yaml fixtures); live run on a scratch repo: init → `sync` → `sync --verify` all exit 0 | — |
 | F5.2 | `join` sets up a teammate | **Not started** | — | M5 |
 | F5.3 | join → working setup < 10 min | **Not started** | Unmeasurable until F5.2 exists | After M5 |
 | F6.1 | Dashboard: members and roles | **Not started** | — | Explicitly out of scope this session |
@@ -30,7 +30,7 @@ Method: every claim cites a file path plus a passing test name or pasted command
 
 | Item | Status | Evidence | What remains |
 | --- | --- | --- | --- |
-| CLI `init` | **Not started** | — | M4 |
+| CLI `init` | **Done** | `packages/cli/src/commands/init.ts`; 9 tests; live init→sync→verify pipeline on a scratch repo (exit 0) | — |
 | CLI `sync` | **Done** | `packages/cli/src/commands/sync.ts`; 15 tests in `packages/cli/test/sync.test.ts`; live run on `examples/sample-project` (exit 0, "everything in sync (1 file(s) managed)") | — |
 | CLI `check` | **Done** | `packages/cli/src/commands/check.ts`; 9 tests; see F2.7 | — |
 | CLI `join` | **Not started** | — | M5 |
@@ -46,7 +46,7 @@ Method: every claim cites a file path plus a passing test name or pasted command
 | 3 design-partner agencies, 2 live projects each | **Not started** | No design partners recruited |
 | New dev working setup < 10 min | **Not started** | F5.2/F5.3 don't exist |
 | Check FP rate < 15% on blocking rules | **Not started** | Needs real PR traffic (GitHub App) |
-| init ingests existing AI config files | **Not started** | M4 |
+| init ingests existing AI config files | **In progress (code done)** | `runtime init` implements F5.1/D11 — see F5.1 row; MVP-exit criterion needs design-partner trials |
 
 ## 2. P1 items (status only)
 
@@ -82,7 +82,7 @@ Method: every claim cites a file path plus a passing test name or pasted command
 
 ## 5. Quality
 
-- **Tests:** core 103 (12 files), cli 30 (2 files) — 133 total, all green 2026-11-07.
+- **Tests:** core 103 (12 files), cli 39 (3 files) — 142 total, all green 2026-11-07.
 - **Hardening (M3):** symlink/junction escape rejected (`realpath` both sides), generated-header detection anchored (spoof guard), per-check cooperative time budget (1000 ms → `skipped`, never a pass; single-call residual risk documented in `packages/core/src/constants.ts`), binary-file skip, atomic writes (temp+rename) for generated files and the manifest, corrupt-manifest recovery, secret gate extended to `project.yaml`. Full details with regression tests in `docs/BUGS.md` (BUG-001…007).
 - **Untested modules:** `apps/github-app` (stub), `packages/cli/src/main.ts` (commander wiring — actions tested directly), `scripts/scan-secrets.mjs`, `scripts/license-report.mjs`, `scripts/gh-api.mjs` (operational scripts, run manually), Cursor `.mdc` header placement is implemented in `attachGeneratedHeader` and unit-tested, but no cursor adapter consumes it yet.
 - **Known bugs:** none open; 7 found and fixed during M3 with regression tests (`docs/BUGS.md`), plus two CI-environment bugs fixed earlier (typecheck-before-build ordering; 8.3 short-path repo-root comparison).

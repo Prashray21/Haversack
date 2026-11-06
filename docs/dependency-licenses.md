@@ -1,6 +1,6 @@
 # Dependency license report
 
-Generated 2026-11-05 by `node scripts/license-report.mjs` — re-run after dependency changes.
+Generated 2026-11-06 by `node scripts/license-report.mjs` — re-run after dependency changes.
 
 This project is MIT. Every dependency below was checked for MIT compatibility:
 **100 packages, 0 flagged.**
