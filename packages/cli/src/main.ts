@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { runSync } from "./commands/sync.js";
 import { runCheck } from "./commands/check.js";
 import { runInit } from "./commands/init.js";
+import { runJoin } from "./commands/join.js";
 import { CLI_VERSION } from "./version.js";
 
 const program = new Command();
@@ -37,6 +38,18 @@ program
   .description("scan the repo, ingest existing CLAUDE.md / AGENTS.md / .cursor/rules, and write a DRAFT project.yaml (never overwrites files)")
   .action(async () => {
     const exitCode = await runInit({
+      cwd: process.cwd(),
+      stdout: (line) => process.stdout.write(`${line}\n`),
+      stderr: (line) => process.stderr.write(`${line}\n`),
+    });
+    process.exitCode = exitCode;
+  });
+
+program
+  .command("join")
+  .description("set up a new teammate: sync targets, verify the setup, report what is missing")
+  .action(async () => {
+    const exitCode = await runJoin({
       cwd: process.cwd(),
       stdout: (line) => process.stdout.write(`${line}\n`),
       stderr: (line) => process.stderr.write(`${line}\n`),
