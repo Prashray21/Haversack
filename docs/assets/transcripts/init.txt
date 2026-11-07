@@ -1,0 +1,8 @@
+moved CLAUDE.md → context/existing-claude.md (original removed: it conflicts with the generated CLAUDE.md)
+wrote project.yaml (DRAFT — review before syncing)
+
+next steps:
+  1. review project.yaml — the project name, targets, and file layout are a starting point
+  2. add real checks (static, and llm once the judge exists)
+  3. run `runtime sync` to compile the definition into tool configs
+exit: 0

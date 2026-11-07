@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="551" height="198" viewBox="0 0 551 198" role="img" aria-label="terminal transcript: runtime check  (fixed)">
+<rect width="551" height="198" fill="#1e1e2e" rx="8"/>
+<rect width="551" height="30" fill="#11111b" rx="8"/>
+<rect y="22" width="551" height="8" fill="#11111b"/>
+<circle cx="18" cy="15" r="5" fill="#f38ba8"/>
+<circle cx="34" cy="15" r="5" fill="#f9e2af"/>
+<circle cx="50" cy="15" r="5" fill="#a6e3a1"/>
+<text x="66" y="19" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="12" fill="#a6adc8">runtime check  (fixed)</text>
+<text x="16" y="44" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="14" fill="#cdd6f4" xml:space="preserve">project: scratch-repo (runtime spec 1)</text>
+<text x="16" y="64" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="14" fill="#cdd6f4" xml:space="preserve">mode: whole files (all tracked)</text>
+<text x="16" y="84" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="14" fill="#cdd6f4" xml:space="preserve"></text>
+<text x="16" y="104" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="14" fill="#cdd6f4" xml:space="preserve">✓ no-console-log (block) — no findings</text>
+<text x="16" y="124" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="14" fill="#cdd6f4" xml:space="preserve"></text>
+<text x="16" y="144" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="14" fill="#cdd6f4" xml:space="preserve">check: 1 passed · 0 failed · 0 skipped · mode: whole files (all tracked)</text>
+<text x="16" y="164" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="14" fill="#cdd6f4" xml:space="preserve">result: no blocking failures (exit 0)</text>
+<text x="16" y="184" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="14" fill="#cdd6f4" xml:space="preserve">exit: 0</text>
+</svg>

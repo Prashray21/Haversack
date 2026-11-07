@@ -1,0 +1,8 @@
+project: scratch-repo (runtime spec 1)
+mode: whole files (all tracked)
+
+✓ no-console-log (block) — no findings
+
+check: 1 passed · 0 failed · 0 skipped · mode: whole files (all tracked)
+result: no blocking failures (exit 0)
+exit: 0

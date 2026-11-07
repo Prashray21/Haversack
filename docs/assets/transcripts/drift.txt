@@ -1,0 +1,5 @@
+project: scratch-repo (runtime spec 1)
+  hand-edited CLAUDE.md
+✘ drift: CLAUDE.md was hand-edited — skipped (use --force to overwrite)
+verify: 1 file(s) would change — run 'runtime sync' to update
+exit: 1

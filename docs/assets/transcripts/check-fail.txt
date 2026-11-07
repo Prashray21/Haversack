@@ -1,0 +1,10 @@
+project: scratch-repo (runtime spec 1)
+mode: whole files (all tracked)
+
+✘ no-console-log (block) — 1 finding(s)
+    src/app.ts:2 — console.log left in production code.
+      fix: Remove it or use the project logger.
+
+check: 0 passed · 1 failed · 0 skipped · mode: whole files (all tracked)
+result: 1 BLOCK check(s) failed (exit 1)
+exit: 1

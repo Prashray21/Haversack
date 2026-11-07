@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="796" height="198" viewBox="0 0 796 198" role="img" aria-label="terminal transcript: runtime init">
+<rect width="796" height="198" fill="#1e1e2e" rx="8"/>
+<rect width="796" height="30" fill="#11111b" rx="8"/>
+<rect y="22" width="796" height="8" fill="#11111b"/>
+<circle cx="18" cy="15" r="5" fill="#f38ba8"/>
+<circle cx="34" cy="15" r="5" fill="#f9e2af"/>
+<circle cx="50" cy="15" r="5" fill="#a6e3a1"/>
+<text x="66" y="19" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="12" fill="#a6adc8">runtime init</text>
+<text x="16" y="44" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="14" fill="#cdd6f4" xml:space="preserve">moved CLAUDE.md → context/existing-claude.md (original removed: it conflicts with the generated CLAUDE.md)</text>
+<text x="16" y="64" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="14" fill="#cdd6f4" xml:space="preserve">wrote project.yaml (DRAFT — review before syncing)</text>
+<text x="16" y="84" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="14" fill="#cdd6f4" xml:space="preserve"></text>
+<text x="16" y="104" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="14" fill="#cdd6f4" xml:space="preserve">next steps:</text>
+<text x="16" y="124" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="14" fill="#cdd6f4" xml:space="preserve">  1. review project.yaml — the project name, targets, and file layout are a starting point</text>
+<text x="16" y="144" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="14" fill="#cdd6f4" xml:space="preserve">  2. add real checks (static, and llm once the judge exists)</text>
+<text x="16" y="164" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="14" fill="#cdd6f4" xml:space="preserve">  3. run `runtime sync` to compile the definition into tool configs</text>
+<text x="16" y="184" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace" font-size="14" fill="#cdd6f4" xml:space="preserve">exit: 0</text>
+</svg>
