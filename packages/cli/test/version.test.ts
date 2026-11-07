@@ -10,7 +10,7 @@ describe("CLI_VERSION", () => {
     expect(CLI_VERSION).toBe(pkg.version);
   });
 
-  it("is a prerelease for alpha tags (semver with a hyphen)", () => {
-    expect(CLI_VERSION).toMatch(/^\d+\.\d+\.\d+-/);
+  it("is valid semver (stable or prerelease)", () => {
+    expect(CLI_VERSION).toMatch(/^\d+\.\d+\.\d+(-[\w.]+)?$/);
   });
 });
