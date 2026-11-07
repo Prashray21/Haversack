@@ -97,3 +97,10 @@ Method: every claim cites a file path plus a passing test name or pasted command
 4. **AST-based static checks** (~2d, ts-morph).
 5. **Living context (F3)** (~2–3d, depends on App).
 6. **MVP exit measurement** (design partners, FP-rate) — business work, not code.
+
+## 7. Phase A — desktop app (Windows, started 2026-11-07)
+
+| Step | Status | Evidence |
+| --- | --- | --- |
+| A0 preflight | **Done** | Measured: node 24.14.1, pnpm 12.16.1, git 2.53.0, WebView2 156.0.4314.58 present; docker ✗, supabase CLI ✗, WSL ✗, MSVC ✗, Rust ✗; C: 1.5 GB free / D: 128 GB (owner approved D: for storage). Blockers handed to owner: WSL2 + Docker Desktop install (elevated, owner-side, needed by A5), Supabase CLI route. |
+| A1 architecture ADR | **Proposed — awaiting owner approval** | `docs/adr/001-desktop-architecture.md` — Electron recommended over Tauri (direct `packages/core` import, zero new local toolchain, built-in DPAPI safeStorage, unsigned-capable NSIS auto-update); all framework claims carry official-doc citations fetched 2026-11-07. |
