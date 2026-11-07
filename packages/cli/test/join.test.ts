@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runJoin } from "../src/commands/join.js";
-import { DEFAULT_CONFIG_FILE, MANIFEST_REL_PATH } from "@runtime/core";
+import { DEFAULT_CONFIG_FILE, MANIFEST_REL_PATH } from "@haversackhq/core";
 
 function capture() {
   const out: string[] = [];
@@ -54,7 +54,7 @@ integrations:
   github: { scopes: [read] }
 `;
 
-describe("runtime join", () => {
+describe("haversack join", () => {
   it("fresh clone: syncs registered targets, verifies, reports missing + inert integrations (exit 0)", async () => {
     const repo = await makeFreshRepo({ "project.yaml": YAML, "rules/coding.md": "Be terse.\n" });
     const io = capture();
@@ -64,7 +64,7 @@ describe("runtime join", () => {
     const out = io.out.join("\n");
     expect(out).toContain("join: setting up 'onboarding'");
     expect(out).toContain("wrote CLAUDE.md");
-    expect(out).toContain("wrote .cursor/rules/runtime.mdc");
+    expect(out).toContain("wrote .cursor/rules/haversack.mdc");
     expect(out).toContain("setup report:");
     expect(out).toContain("✓ targets synced: claude-code, cursor");
     expect(out).toContain("validated but inert in the MVP");
@@ -106,7 +106,7 @@ describe("runtime join", () => {
     const code = await join(repo, io);
     expect(code).toBe(2);
     expect(io.err.join("\n")).toContain("not found");
-    expect(io.err.join("\n")).toContain("runtime join needs a committed project.yaml");
+    expect(io.err.join("\n")).toContain("haversack join needs a committed project.yaml");
   });
 
   it("a repo whose referenced file is missing exits 2 without writing anything", async () => {
@@ -115,7 +115,7 @@ describe("runtime join", () => {
     const code = await join(repo, io);
     expect(code).toBe(2);
     expect(io.err.join("\n")).toContain("rules/coding.md does not exist");
-    expect(io.err.join("\n")).toContain("runtime join needs a committed project.yaml");
+    expect(io.err.join("\n")).toContain("haversack join needs a committed project.yaml");
   });
 
   it("a secret in a source file stops join before any write (exit 3)", async () => {

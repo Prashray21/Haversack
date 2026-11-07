@@ -36,12 +36,12 @@ function escapeXml(text) {
 }
 
 const TITLES = {
-  "init": "runtime init",
-  "sync": "runtime sync",
-  "drift": "runtime sync --verify  (after a hand edit)",
-  "check-fail": "runtime check  (block rule violated)",
-  "check-clean": "runtime check  (fixed)",
-  "secret": "runtime sync  (secret gate)",
+  "init": "haversack init",
+  "sync": "haversack sync",
+  "drift": "haversack sync --verify  (after a hand edit)",
+  "check-fail": "haversack check  (block rule violated)",
+  "check-clean": "haversack check  (fixed)",
+  "secret": "haversack sync  (secret gate)",
 };
 
 async function render(file) {

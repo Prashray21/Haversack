@@ -150,7 +150,7 @@ describe("writeTextFileAtomic", () => {
     await writeTextFileAtomic(root, "out.md", "new\n");
     expect(await readFile(path.join(root, "out.md"), "utf8")).toBe("new\n");
     const names = await readdir(root);
-    expect(names.filter((name) => name.includes(".runtime-tmp-"))).toEqual([]);
+    expect(names.filter((name) => name.includes(".haversack-tmp-"))).toEqual([]);
   });
 
   it("a failed rename rejects and leaves no temp litter behind", async () => {
@@ -159,7 +159,7 @@ describe("writeTextFileAtomic", () => {
     const root = await mkRoot({ "CLAUDE.md/keep": "x\n" });
     await expect(writeTextFileAtomic(root, "CLAUDE.md", "# hi\n")).rejects.toThrow();
     const names = await readdir(root);
-    expect(names.filter((name) => name.includes(".runtime-tmp-"))).toEqual([]);
+    expect(names.filter((name) => name.includes(".haversack-tmp-"))).toEqual([]);
     // the directory is untouched
     expect(await readFile(path.join(root, "CLAUDE.md", "keep"), "utf8")).toBe("x\n");
   });

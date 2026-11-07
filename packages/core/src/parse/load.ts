@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { ZodIssue } from "zod";
 import { MAX_SOURCE_FILE_BYTES } from "../constants.js";
-import { RUNTIME_SPEC_VERSION, projectConfigSchema, TOP_LEVEL_KEYS } from "../schema/project.js";
+import { SPEC_VERSION, projectConfigSchema, TOP_LEVEL_KEYS } from "../schema/project.js";
 import type { ProjectConfig } from "../schema/project.js";
 import { readRepoTextFile, SourceFileError } from "./files.js";
 import { findNodePos, formatSchemaPath, parseYamlWithPositions, posAt } from "./positions.js";
@@ -43,7 +43,7 @@ export class LoadError extends Error {
   }
 }
 
-/** The file declares a `runtime:` spec version this CLI does not support (exit code 2). */
+/** The file declares a spec version this CLI does not support (exit code 2). */
 export class SpecVersionError extends LoadError {
   constructor(
     report: string,
@@ -71,7 +71,7 @@ export async function loadProject(options: LoadOptions): Promise<LoadResult> {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "ENOENT") {
       throw new LoadError(
-        `✘ ${fileName} not found in ${options.cwd}\n  create a ${fileName} to define this project for Runtime`,
+        `✘ ${fileName} not found in ${options.cwd}\n  create a ${fileName} to define this project for Haversack`,
       );
     }
     throw new LoadError(`✘ ${fileName} could not be read (error code: ${code ?? "unknown"})`);
@@ -113,6 +113,13 @@ export async function loadProject(options: LoadOptions): Promise<LoadResult> {
   if (sourceErrors.length > 0) throw new LoadError(sourceErrors.join("\n"));
 
   const warnings: RuntimeWarning[] = sourceWarnings;
+  if (config.runtime !== undefined) {
+    warnings.push({
+      code: "legacy_spec_key",
+      message:
+        "project.yaml uses the legacy 'runtime: 1' spec key — rename it to 'haversack: 1' (legacy support will be removed in a future release)",
+    });
+  }
   if (Object.keys(config.integrations).length > 0) {
     warnings.push({
       code: "integrations_inert",
@@ -169,14 +176,18 @@ function findSpecVersionIssue(
   issues: ZodIssue[],
   json: Record<string, unknown>,
 ): SpecVersionError | undefined {
-  const runtimeIssue = issues.find((i) => i.path.length === 1 && String(i.path[0]) === "runtime");
-  if (!runtimeIssue) return undefined;
-  const received = json.runtime;
-  if (received === undefined) return undefined; // missing field: a normal required-field error
+  const specKeyIssue = issues.find(
+    (i) => i.path.length === 1 && (String(i.path[0]) === "runtime" || String(i.path[0]) === "haversack"),
+  );
+  if (!specKeyIssue) return undefined;
+  const received = json.runtime ?? json.haversack;
+  // A value that is present but not the supported version is the spec-version
+  // error. Everything else (missing key, both keys) is a normal schema error.
+  if (received === undefined || received === SPEC_VERSION) return undefined;
   const report = [
-    `✘ project.yaml — runtime`,
-    `  this file declares runtime spec version ${JSON.stringify(received)}`,
-    `  this CLI supports spec version ${RUNTIME_SPEC_VERSION} — upgrade the CLI, or set 'runtime: ${RUNTIME_SPEC_VERSION}'`,
+    `✘ project.yaml`,
+    `  this file declares spec version ${JSON.stringify(received)}`,
+    `  this CLI supports spec version ${SPEC_VERSION} — upgrade the CLI, or set 'haversack: ${SPEC_VERSION}' ('runtime: ${SPEC_VERSION}' accepted)`,
   ].join("\n");
   return new SpecVersionError(report, received);
 }

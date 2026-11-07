@@ -1,4 +1,4 @@
-import { LoadError, loadProject, tryGetAdapter } from "@runtime/core";
+import { LoadError, loadProject, specVersionOf, tryGetAdapter } from "@haversackhq/core";
 import { runSync } from "./sync.js";
 
 export interface JoinOptions {
@@ -10,7 +10,7 @@ export interface JoinOptions {
 }
 
 /**
- * `runtime join` (F5.2): sets up a new teammate's machine from the committed
+ * `haversack join` (F5.2): sets up a new teammate's machine from the committed
  * definition — syncs targets, verifies the result, and reports exactly what
  * is missing or unimplemented. Exit codes mirror sync (D6): 0 ok, 1 drift
  * remained, 2 config error, 3 secret.
@@ -30,14 +30,14 @@ export async function runJoin(options: JoinOptions): Promise<number> {
   } catch (error) {
     if (error instanceof LoadError) {
       stderr(error.report);
-      stderr("  runtime join needs a committed project.yaml — ask the team lead, or run `runtime init` on a repo without one.");
+      stderr("  haversack join needs a committed project.yaml — ask the team lead, or run `haversack init` on a repo without one.");
       return 2;
     }
     throw error;
   }
   const { config } = project;
 
-  stdout(`join: setting up '${config.project}' (runtime spec ${config.runtime})`);
+  stdout(`join: setting up '${config.project}' (spec version ${specVersionOf(config)})`);
 
   // 2) Sync targets — writes generated files for registered adapters.
   const syncCode = await runSync({ cwd: options.cwd, yes: true, verify: false, force: false, stdout, stderr });

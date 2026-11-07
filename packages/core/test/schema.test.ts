@@ -128,3 +128,35 @@ describe("projectConfigSchema", () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe("spec key (ADR 002 rename)", () => {
+  const base = {
+    project: "acme-storefront",
+    targets: ["claude-code"],
+    checks: [],
+  };
+
+  it("accepts `haversack: 1`", () => {
+    const parsed = projectConfigSchema.parse({ ...base, haversack: 1 });
+    expect(parsed.haversack).toBe(1);
+    expect(parsed.runtime).toBeUndefined();
+  });
+
+  it("accepts the legacy `runtime: 1` key", () => {
+    const parsed = projectConfigSchema.parse({ ...base, runtime: 1 });
+    expect(parsed.runtime).toBe(1);
+    expect(parsed.haversack).toBeUndefined();
+  });
+
+  it("rejects both spec keys at once (ambiguity)", () => {
+    expect(() => projectConfigSchema.parse({ ...base, haversack: 1, runtime: 1 })).toThrowError(/exactly one/);
+  });
+
+  it("rejects a missing spec key", () => {
+    expect(() => projectConfigSchema.parse({ ...base })).toThrowError(/exactly one/);
+  });
+
+  it("rejects `haversack: 2` (unsupported spec version)", () => {
+    expect(() => projectConfigSchema.parse({ ...base, haversack: 2 })).toThrowError();
+  });
+});

@@ -1,5 +1,5 @@
 // Pre-push secret audit: scans the working tree and full git history with the
-// SAME scanner `runtime sync` uses (@runtime/core), so the rules are identical.
+// SAME scanner `haversack sync` uses (@haversackhq/core), so the rules are identical.
 // Findings are always redacted. Exit code 1 when anything is found — gate or
 // review manually. Usage: node scripts/scan-secrets.mjs   (build core first)
 import { readdir, readFile, stat } from "node:fs/promises";

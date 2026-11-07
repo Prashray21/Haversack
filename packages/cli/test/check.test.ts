@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runCheck } from "../src/commands/check.js";
-import type { LlmTransport } from "@runtime/core";
+import type { LlmTransport } from "@haversackhq/core";
 
 const BASE_YAML = `runtime: 1
 project: demo
@@ -72,7 +72,7 @@ function check(cwd: string, io: ReturnType<typeof capture>, opts: { base?: strin
   return runCheck({ cwd, base: opts.base, json: opts.json ?? false, llmTransport: opts.llmTransport, ...io });
 }
 
-describe("runtime check — static engine", () => {
+describe("haversack check — static engine", () => {
   it("whole-file mode: block failure exits 1 with findings; llm checks report skipped", async () => {
     const repo = await makeRepo(
       {
@@ -90,7 +90,7 @@ describe("runtime check — static engine", () => {
     expect(text).toContain("✘ no-console-log (block) — 1 finding(s)");
     expect(text).toContain("src/app.ts:2 — console.log left in production code.");
     expect(text).toContain("fix: Remove it or use the project logger.");
-    expect(text).toContain("- rls-required-on-new-tables (warn) — skipped (llm checks evaluate a diff — re-run with `runtime check --base <ref>`");
+    expect(text).toContain("- rls-required-on-new-tables (warn) — skipped (llm checks evaluate a diff — re-run with `haversack check --base <ref>`");
     expect(io.err.join("\n")).toContain("1 BLOCK check(s) failed (exit 1)");
   });
 
@@ -227,7 +227,7 @@ checks:
     const io = capture();
     const code = await check(plain, io);
     expect(code).toBe(2);
-    expect(io.err.join("\n")).toContain("runtime check");
+    expect(io.err.join("\n")).toContain("haversack check");
   });
 
   it("exits 2 for an invalid --base ref", async () => {
@@ -242,7 +242,7 @@ checks:
   });
 });
 
-describe("runtime check — F2.6 cost controls", () => {
+describe("haversack check — F2.6 cost controls", () => {
   it("static checks run first; the llm check is reported skipped after all static results (F2.6)", async () => {
     const repo = await makeRepo(
       {
@@ -362,7 +362,7 @@ function judgeMock(content: unknown) {
   } as unknown as LlmTransport & { calls: string[] };
 }
 
-describe("runtime check — llm judged checks (mocked transport)", () => {
+describe("haversack check — llm judged checks (mocked transport)", () => {
   let savedKey: string | undefined;
   beforeEach(() => {
     savedKey = process.env.OPENAI_API_KEY;
@@ -401,7 +401,7 @@ describe("runtime check — llm judged checks (mocked transport)", () => {
     expect(llm?.usage).toEqual({ model: "gpt-test-served", inputTokens: 100, outputTokens: 20, usd: 0.11 });
 
     // D4 ledger: 11 cents recorded for the current UTC month.
-    const ledger = JSON.parse(await readFile(path.join(repo, ".runtime", "budget.json"), "utf8")) as { months: Record<string, { usdCents: number }> };
+    const ledger = JSON.parse(await readFile(path.join(repo, ".haversack", "budget.json"), "utf8")) as { months: Record<string, { usdCents: number }> };
     const month = new Date().toISOString().slice(0, 7);
     expect(ledger.months[month]?.usdCents).toBe(11);
   });
@@ -428,9 +428,9 @@ describe("runtime check — llm judged checks (mocked transport)", () => {
     );
     await writeFile(path.join(repo, "migrations", "0001.sql"), "create table orders (id bigint);\ncreate table users (id bigint);\n");
     const month = new Date().toISOString().slice(0, 7);
-    await mkdir(path.join(repo, ".runtime"), { recursive: true });
+    await mkdir(path.join(repo, ".haversack"), { recursive: true });
     await writeFile(
-      path.join(repo, ".runtime", "budget.json"),
+      path.join(repo, ".haversack", "budget.json"),
       JSON.stringify({ project: "demo", months: { [month]: { inputTokens: 9_000_000, outputTokens: 0, usdCents: 100 } } }, null, 2),
     );
     const io = capture();
@@ -478,7 +478,7 @@ describe("runtime check — llm judged checks (mocked transport)", () => {
 
 /* ── live judge (runs ONLY with OPENAI_API_KEY set; otherwise unverified) ── */
 
-describe.skipIf(process.env.OPENAI_API_KEY === undefined)("runtime check — LIVE judge", () => {
+describe.skipIf(process.env.OPENAI_API_KEY === undefined)("haversack check — LIVE judge", () => {
   it("runs one real diff check against the configured OpenAI endpoint", async () => {
     const repo = await makeRepo(
       { "project.yaml": LLM_YAML, "migrations/0001.sql": "create table orders (id bigint);\n" },

@@ -1,0 +1,21 @@
+{
+  "files": {
+    ".cursor/rules/haversack.mdc": {
+      "adapter": "cursor",
+      "adapterVersion": 1,
+      "sha256": "9d9de3d234c0c4243d935f5551891f93ce474acf33083d59ce29a96220a1e8fb"
+    },
+    ".github/copilot-instructions.md": {
+      "adapter": "copilot",
+      "adapterVersion": 1,
+      "sha256": "55f6313bca5908a60e7014a1e42d6b91edc071c71e3f38285807ac051ca567c5"
+    },
+    "CLAUDE.md": {
+      "adapter": "claude-code",
+      "adapterVersion": 1,
+      "sha256": "fdbe0d7e77a821016f62e52456fe43be4a95963daba9e34eabde8ec3300785cc"
+    }
+  },
+  "generator": "haversack@0.1.0",
+  "haversack": 1
+}

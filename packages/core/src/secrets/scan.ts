@@ -1,4 +1,4 @@
-import { ALLOW_SECRET_MARKER } from "../constants.js";
+import { ALLOW_SECRET_MARKER, LEGACY_ALLOW_SECRET_MARKER } from "../constants.js";
 
 export interface SecretFinding {
   ruleId: string;
@@ -53,7 +53,8 @@ export function scanFiles(files: ReadonlyArray<{ path: string; content: string }
 
 /**
  * Scans text line by line. A line is skipped when it contains the
- * `runtime:allow-secret` marker or matches an ignore pattern (D8).
+ * `haversack:allow-secret` marker (the legacy `runtime:allow-secret` marker is
+ * honored too, ADR 002 §3.6) or matches an ignore pattern (D8).
  *
  * For each line, all pattern matches are collected first and the snippet is
  * redacted against ALL of them — so a line matching multiple rules never
@@ -67,7 +68,7 @@ export function scanText(text: string, options: { ignore?: RegExp[] } = {}): Sec
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index];
     if (line === undefined || line.length === 0) continue;
-    if (line.includes(ALLOW_SECRET_MARKER)) continue;
+    if (line.includes(ALLOW_SECRET_MARKER) || line.includes(LEGACY_ALLOW_SECRET_MARKER)) continue;
     if (options.ignore?.some((re) => re.test(line))) continue;
 
     interface Match {

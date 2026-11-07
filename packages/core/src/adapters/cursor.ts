@@ -2,7 +2,11 @@ import { attachGeneratedHeader } from "./header.js";
 import type { CompiledProject, GeneratedFile, TargetAdapter } from "./types.js";
 import type { SourceFile } from "../parse/load.js";
 
-export const CURSOR_MDC_PATH = ".cursor/rules/runtime.mdc";
+export const CURSOR_MDC_PATH = ".cursor/rules/haversack.mdc";
+
+/** Legacy output path from the Project Runtime era — migrated by sync (ADR 002 §3.4). */
+export const LEGACY_CURSOR_MDC_PATH = ".cursor/rules/runtime.mdc";
+
 export const CURSOR_ADAPTER_VERSION = 1;
 
 function inlineSection(title: string, files: SourceFile[]): string {
@@ -13,7 +17,7 @@ function inlineSection(title: string, files: SourceFile[]): string {
 
 /**
  * Compiles the definition into Cursor's native project rules
- * (.cursor/rules/runtime.mdc — format verified against
+ * (.cursor/rules/haversack.mdc — format verified against
  * https://cursor.com/docs/context/rules).
  *
  * The .mdc structure is: frontmatter first, generated header second (D5 —

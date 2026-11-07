@@ -1,19 +1,23 @@
 import { createTwoFilesPatch } from "diff";
-import { readFile, rm } from "node:fs/promises";
+import { readFile, rm, rmdir } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import {
+  LEGACY_CURSOR_MDC_PATH,
+  LEGACY_MANIFEST_REL_PATH,
   MANIFEST_REL_PATH,
   SIZE_WARN_BYTES,
   LoadError,
   assessGeneratedFile,
   compileIgnorePatterns,
   findOrphans,
+  hasGeneratedHeader,
   hashContent,
   loadProject,
   normalizeText,
   readManifest,
   scanText,
+  specVersionOf,
   targetIdSchema,
   tryGetAdapter,
   writeManifest,
@@ -26,7 +30,7 @@ import {
   type SourceFile,
   type TargetAdapter,
   type TargetId,
-} from "@runtime/core";
+} from "@haversackhq/core";
 import { CLI_VERSION } from "../version.js";
 
 export interface SyncOptions {
@@ -60,7 +64,7 @@ interface SecretReport {
 }
 
 /**
- * `runtime sync` (F1.2, F1.3, D5, D6, D8, D10):
+ * `haversack sync` (F1.2, F1.3, D5, D6, D8, D10, ADR 002 migration):
  *   load → generate → secret gate → assess drift → show diff → write + manifest.
  * Exit codes: 0 ok, 1 changes/drift detected, 2 config error, 3 secret found.
  */
@@ -80,7 +84,7 @@ export async function runSync(options: SyncOptions): Promise<number> {
   }
   const { config, sources, warnings } = loaded;
 
-  stdout(`project: ${config.project} (runtime spec ${config.runtime})`);
+  stdout(`project: ${config.project} (spec version ${specVersionOf(config)})`);
   for (const warning of warnings) stdout(`⚠ ${warning.message}`);
 
   // 2) Resolve targets and adapters.
@@ -132,7 +136,7 @@ export async function runSync(options: SyncOptions): Promise<number> {
       stderr(`    ${finding.snippet}`);
     }
     stderr(
-      "  fix the source, or if it is not a real secret use a secrets.ignore entry or a `runtime:allow-secret` line marker",
+      "  fix the source, or if it is not a real secret use a secrets.ignore entry or a `haversack:allow-secret` line marker (the legacy `runtime:allow-secret` marker is still honored)",
     );
     return 3;
   }
@@ -142,12 +146,18 @@ export async function runSync(options: SyncOptions): Promise<number> {
     return 0;
   }
 
-  // 6) Manifest + disk state.
-  const { manifest, corrupt } = await readManifest(options.cwd);
+  // 6) Manifest + disk state. A manifest from the Project Runtime era
+  // (.runtime/manifest.json) is adopted here and replaced by the new one on
+  // write (ADR 002 §3.1).
+  const { manifest, corrupt, sourcePath: manifestSourcePath } = await readManifest(options.cwd);
   if (corrupt) {
     stderr(
-      `⚠ ${MANIFEST_REL_PATH} is unreadable — managed files will be treated as untracked; fix or delete it and re-run`,
+      `⚠ ${manifestSourcePath} is unreadable — managed files will be treated as untracked; fix or delete it and re-run`,
     );
+  }
+  const manifestIsLegacy = manifest !== undefined && manifestSourcePath === LEGACY_MANIFEST_REL_PATH;
+  if (manifestIsLegacy) {
+    stdout(`migrating legacy manifest: ${LEGACY_MANIFEST_REL_PATH} → ${MANIFEST_REL_PATH}`);
   }
   const manifestFiles: Record<string, ManifestFileEntry> = manifest?.files ?? {};
 
@@ -171,13 +181,36 @@ export async function runSync(options: SyncOptions): Promise<number> {
   }
 
   // Orphans: manifest entries of the adapters that ran, whose paths are no
-  // longer generated (e.g. the target was removed from project.yaml).
+  // longer generated (e.g. the target was removed from project.yaml — or the
+  // cursor rule was renamed runtime.mdc → haversack.mdc, ADR 002 §3.4).
   const generatedPaths = new Set(generated.map((g) => g.path));
   const activeAdapterIds = new Set(adapters.map((a) => a.id));
   const orphanPaths = findOrphans(manifestFiles, generatedPaths).filter((p) => {
     const entry = manifestFiles[p];
     return entry !== undefined && activeAdapterIds.has(entry.adapter as TargetId);
   });
+
+  // Legacy cursor rule (ADR 002 §3.4): the output was renamed
+  // .cursor/rules/runtime.mdc → .cursor/rules/haversack.mdc. A tracked,
+  // unmodified legacy file flows through the normal orphan deletion; a
+  // hand-edited one is never deleted (kept + warned); an untracked file
+  // carrying one of our generated headers is removed as ours.
+  let legacyCursorCleanup = false;
+  if (!generatedPaths.has(LEGACY_CURSOR_MDC_PATH)) {
+    const legacyCursorIndex = orphanPaths.indexOf(LEGACY_CURSOR_MDC_PATH);
+    const legacyDisk = await readIfExists(options.cwd, LEGACY_CURSOR_MDC_PATH);
+    if (legacyDisk !== undefined && legacyCursorIndex < 0 && !manifestFiles[LEGACY_CURSOR_MDC_PATH]) {
+      if (hasGeneratedHeader(legacyDisk)) {
+        legacyCursorCleanup = true;
+      }
+    } else if (legacyDisk !== undefined && legacyCursorIndex >= 0 && !options.force) {
+      const entry = manifestFiles[LEGACY_CURSOR_MDC_PATH];
+      if (entry && hashContent(legacyDisk) !== entry.sha256) {
+        orphanPaths.splice(legacyCursorIndex, 1);
+        stdout(`⚠ legacy ${LEGACY_CURSOR_MDC_PATH} is hand-edited — not removed; delete it manually or re-run with --force`);
+      }
+    }
+  }
 
   // 7) Drift gating: hand-edited / untracked files are never overwritten without --force.
   const needsForce = (p: PlannedFile) => p.state === "hand-edited" || p.state === "untracked";
@@ -188,10 +221,11 @@ export async function runSync(options: SyncOptions): Promise<number> {
   if (options.verify) {
     for (const p of planned) stdout(`  ${p.state.padEnd(12)}${p.path}`);
     for (const p of orphanPaths) stdout(`  ${"orphaned".padEnd(12)}${p} (no longer generated)`);
+    if (legacyCursorCleanup) stdout(`  ${"orphaned".padEnd(12)}${LEGACY_CURSOR_MDC_PATH} (renamed to .cursor/rules/haversack.mdc)`);
     for (const b of blocked) stderr(`✘ drift: ${describeBlocked(b)}`);
-    const changeCount = planned.length + orphanPaths.length;
+    const changeCount = planned.length + orphanPaths.length + (legacyCursorCleanup ? 1 : 0);
     if (changeCount > 0) {
-      stdout(`verify: ${changeCount} file(s) would change — run 'runtime sync' to update`);
+      stdout(`verify: ${changeCount} file(s) would change — run 'haversack sync' to update`);
       return 1;
     }
     stdout(`verify: all ${generated.length} generated file(s) in sync`);
@@ -210,9 +244,12 @@ export async function runSync(options: SyncOptions): Promise<number> {
       stderr(`⚠ ${orphan} changed since it was synced — deleting anyway on confirmation`);
     }
   }
+  if (legacyCursorCleanup) {
+    stdout(`migrated    ${LEGACY_CURSOR_MDC_PATH} — renamed to .cursor/rules/haversack.mdc; it will be deleted`);
+  }
   for (const b of blocked) stderr(`✘ drift: ${describeBlocked(b)}`);
 
-  const actionCount = writable.length + orphanPaths.length;
+  const actionCount = writable.length + orphanPaths.length + (legacyCursorCleanup ? 1 : 0);
   if (actionCount === 0) {
     if (blocked.length > 0) {
       stdout("nothing written — resolve the drift above or re-run with --force");
@@ -242,10 +279,14 @@ export async function runSync(options: SyncOptions): Promise<number> {
       await rm(path.join(options.cwd, orphan), { force: true });
       stdout(`deleted ${orphan}`);
     }
+    if (legacyCursorCleanup) {
+      await rm(path.join(options.cwd, LEGACY_CURSOR_MDC_PATH), { force: true });
+      stdout(`migrated: removed legacy ${LEGACY_CURSOR_MDC_PATH}`);
+    }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     stderr(`✘ write failed: ${detail}`);
-    stderr("  files written so far are complete; the manifest was not updated — re-run 'runtime sync' to converge");
+    stderr("  files written so far are complete; the manifest was not updated — re-run 'haversack sync' to converge");
     return 1;
   }
 
@@ -257,12 +298,24 @@ export async function runSync(options: SyncOptions): Promise<number> {
     delete files[orphan];
   }
   const nextManifest: Manifest = {
-    runtime: config.runtime,
-    generator: `runtime@${CLI_VERSION}`,
+    haversack: specVersionOf(config),
+    generator: `haversack@${CLI_VERSION}`,
     files,
   };
   await writeManifest(options.cwd, nextManifest);
   stdout(`updated ${MANIFEST_REL_PATH}`);
+
+  if (manifestIsLegacy) {
+    // Adoption is complete only once the legacy manifest is gone (ADR 002 §3.1).
+    try {
+      await rm(path.join(options.cwd, LEGACY_MANIFEST_REL_PATH), { force: true });
+      await rmdir(path.dirname(LEGACY_MANIFEST_REL_PATH));
+      stdout(`removed legacy ${LEGACY_MANIFEST_REL_PATH}`);
+    } catch {
+      // Not empty (e.g. the legacy budget.json, which migrates on the next
+      // LLM check run) or already gone — harmless either way.
+    }
+  }
 
   return blocked.length > 0 ? 1 : 0;
 }
@@ -340,7 +393,7 @@ async function readIfExists(root: string, relPath: string): Promise<string | und
 function describeBlocked(p: PlannedFile): string {
   return p.state === "hand-edited"
     ? `${p.path} was hand-edited — skipped (use --force to overwrite)`
-    : `${p.path} exists but is not managed by Runtime — skipped (use --force to overwrite)`;
+    : `${p.path} exists but is not managed by Haversack — skipped (use --force to overwrite)`;
 }
 
 function renderDiff(p: PlannedFile): string {

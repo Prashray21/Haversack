@@ -9,8 +9,8 @@ import { CLI_VERSION } from "./version.js";
 const program = new Command();
 
 program
-  .name("runtime")
-  .description("Project Runtime — write your project's AI setup once. Sync it to every tool. Enforce it.")
+  .name("haversack")
+  .description("Haversack — write your project's AI setup once. Sync it to every tool. Enforce it.")
   .version(CLI_VERSION);
 
 program

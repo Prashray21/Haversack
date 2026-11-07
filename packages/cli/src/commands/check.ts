@@ -15,6 +15,7 @@ import {
   runJudge,
   runStaticChecks,
   scanFiles,
+  specVersionOf,
   type BudgetLedger,
   type CheckedFile,
   type CheckResult,
@@ -23,7 +24,7 @@ import {
   type LlmCheck,
   type LlmTransport,
   type ProjectConfig,
-} from "@runtime/core";
+} from "@haversackhq/core";
 
 export interface CheckOptions {
   cwd: string;
@@ -74,7 +75,7 @@ async function checkInner(options: CheckOptions): Promise<number> {
 
   // In --json mode stdout carries exactly one JSON document; preamble goes to stderr.
   const banner = options.json ? stderr : stdout;
-  banner(`project: ${config.project} (runtime spec ${config.runtime})`);
+  banner(`project: ${config.project} (spec version ${specVersionOf(config)})`);
   for (const warning of warnings) banner(`⚠ ${warning.message}`);
 
   const staticChecks = config.checks.filter((check) => check.type === "static");
@@ -161,7 +162,7 @@ async function runLlmChecks(checks: LlmCheck[], context: LlmRunContext): Promise
         severity: check.severity,
         findings: [],
         skippedReason: "llm_unavailable",
-        detail: "llm checks evaluate a diff — re-run with `runtime check --base <ref>` (F2.6 cost control: changed files only)",
+        detail: "llm checks evaluate a diff — re-run with `haversack check --base <ref>` (F2.6 cost control: changed files only)",
         bodySha256,
       });
       continue;
@@ -341,7 +342,7 @@ function renderHuman(
       stderr(`      ${finding.snippet}`);
     }
     stderr(
-      "  if it is not a real secret: secrets.ignore in project.yaml, or a `runtime:allow-secret` line marker",
+      "  if it is not a real secret: secrets.ignore in project.yaml, or a `haversack:allow-secret` line marker (the legacy `runtime:` marker is honored too)",
     );
   }
 
@@ -402,12 +403,12 @@ function gitListFiles(cwd: string): string[] {
     // 8.3 short paths, case, and slash-direction differences (Windows CI).
     const cdup = git(cwd, ["rev-parse", "--show-cdup"]).trim();
     if (cdup !== "") {
-      throw new CheckUsageError("runtime check must run from the repository root");
+      throw new CheckUsageError("haversack check must run from the repository root");
     }
     out = git(cwd, ["ls-files", "-z"]);
   } catch (error) {
     if (error instanceof CheckUsageError) throw error;
-    throw new CheckUsageError("runtime check needs a git repository (it scans tracked files)");
+    throw new CheckUsageError("haversack check needs a git repository (it scans tracked files)");
   }
   return out.split("\0").filter((entry) => entry.length > 0);
 }

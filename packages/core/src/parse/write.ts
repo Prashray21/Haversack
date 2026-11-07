@@ -16,7 +16,7 @@ export async function writeTextFileAtomic(
   content: string,
 ): Promise<void> {
   const abs = path.resolve(root, relPath);
-  const tmp = `${abs}.runtime-tmp-${process.pid}-${randomBytes(4).toString("hex")}`;
+  const tmp = `${abs}.haversack-tmp-${process.pid}-${randomBytes(4).toString("hex")}`;
   try {
     await mkdir(path.dirname(abs), { recursive: true });
     await writeFile(tmp, content, "utf8");

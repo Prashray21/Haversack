@@ -12,7 +12,7 @@ describe("buildGeneratedHeader", () => {
     const header = buildGeneratedHeader("claude-code", 1, HTML_COMMENT);
     expect(header).toContain(GENERATED_HEADER_MARKER);
     expect(header).toContain("adapter claude-code v1");
-    expect(header).toContain("runtime spec 1");
+    expect(header).toContain("spec version 1");
     expect(header.startsWith("<!-- ")).toBe(true);
     expect(header.endsWith("-->")).toBe(true);
   });

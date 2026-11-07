@@ -1,4 +1,4 @@
-runtime: 1
+haversack: 1
 project: acme-storefront
 description: Next.js storefront on Supabase for Acme.
 

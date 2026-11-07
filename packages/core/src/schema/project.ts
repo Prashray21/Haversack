@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const RUNTIME_SPEC_VERSION = 1;
+export const SPEC_VERSION = 1;
 
 /* ── predicates (used in schema refinements) ────────────────── */
 
@@ -136,8 +136,11 @@ export const modelPolicySchema = z.strictObject({
 
 /* ── top level ──────────────────────────────────────────────── */
 
-export const projectConfigSchema = z.strictObject({
-  runtime: z.literal(RUNTIME_SPEC_VERSION),
+const projectConfigBase = z.strictObject({
+  /** Spec key (ADR 002). Exactly one of `haversack` / legacy `runtime` must be set. */
+  haversack: z.literal(SPEC_VERSION).optional(),
+  /** Legacy spec key from the Project Runtime era — accepted with a deprecation warning. */
+  runtime: z.literal(SPEC_VERSION).optional(),
   project: identifierSchema,
   description: z.string().max(280).optional(),
   context: z.array(repoPathSchema).max(50).default([]),
@@ -149,7 +152,24 @@ export const projectConfigSchema = z.strictObject({
   secrets: secretsConfigSchema.default({ ignore: [] }),
 });
 
-export const TOP_LEVEL_KEYS: string[] = Object.keys(projectConfigSchema.shape);
+export const projectConfigSchema = projectConfigBase.superRefine((value, ctx) => {
+  const hasCurrent = value.haversack !== undefined;
+  const hasLegacy = value.runtime !== undefined;
+  if (hasCurrent === hasLegacy) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["haversack"],
+      message: "set exactly one spec key: 'haversack: 1' (current) or 'runtime: 1' (legacy)",
+    });
+  }
+});
+
+export const TOP_LEVEL_KEYS: string[] = Object.keys(projectConfigBase.shape);
+
+/** The declared spec version, whichever key declared it. */
+export function specVersionOf(config: ProjectConfig): number {
+  return config.haversack ?? config.runtime ?? SPEC_VERSION;
+}
 
 /* ── inferred types (post-defaults) ─────────────────────────── */
 
@@ -161,4 +181,4 @@ export type Check = z.output<typeof checkSchema>;
 export type Integration = z.output<typeof integrationSchema>;
 export type ModelPolicy = z.output<typeof modelPolicySchema>;
 export type SecretsConfig = z.output<typeof secretsConfigSchema>;
-export type ProjectConfig = z.output<typeof projectConfigSchema>;
+export type ProjectConfig = z.output<typeof projectConfigBase>;

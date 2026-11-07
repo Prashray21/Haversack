@@ -10,7 +10,7 @@ build/
 !.env.example
 
 # Local LLM-check spend ledger (the committed manifest is NOT ignored).
-.runtime/budget.json
+.haversack/budget.json
 
 # OS files
 .DS_Store

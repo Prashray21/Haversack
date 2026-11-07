@@ -92,4 +92,14 @@ describe("scanText", () => {
     ].join("\n");
     expect(scanText(benign)).toEqual([]);
   });
+
+  it("skips lines with the haversack:allow-secret marker and the legacy runtime: marker (ADR 002)", () => {
+    const text = [
+      "aws = AKIAIOSFODNN7EXAMPLE # haversack:allow-secret — AWS documented example key",
+      `stripe = sk_live_${"a".repeat(20)} # runtime:allow-secret — legacy marker still honored`,
+      `gh = ${GITHUB_TOKEN}`,
+    ].join("\n");
+    const findings = scanText(text, { ignore: compileIgnorePatterns([]) });
+    expect(findings).toHaveLength(1);
+  });
 });

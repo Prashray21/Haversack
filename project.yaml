@@ -1,5 +1,5 @@
-runtime: 1
-project: project-runtime
+haversack: 1
+project: haversack
 description: Project Runtime dogfooding its own repo — one definition for AI tool setup, enforced on the codebase itself.
 
 context:

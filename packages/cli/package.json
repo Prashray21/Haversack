@@ -1,11 +1,11 @@
 {
-  "name": "@runtime/cli",
+  "name": "@haversackhq/cli",
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
   "type": "module",
   "bin": {
-    "runtime": "./dist/main.js"
+    "haversack": "./dist/main.js"
   },
   "scripts": {
     "build": "node ../../scripts/write-version.mjs && tsc -p .",
@@ -13,7 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@runtime/core": "workspace:*",
+    "@haversackhq/core": "workspace:*",
     "commander": "^13.0.0",
     "diff": "^9.0.0"
   },

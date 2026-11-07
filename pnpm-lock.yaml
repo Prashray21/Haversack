@@ -168,7 +168,7 @@ importers:
 
   packages/cli:
     dependencies:
-      '@runtime/core':
+      '@haversackhq/core':
         specifier: workspace:*
         version: link:../core
       commander:

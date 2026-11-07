@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { LoadError, SpecVersionError, loadProject } from "../src/parse/load.js";
 import { sha256Hex } from "../src/parse/files.js";
 
-const GOOD_YAML = `runtime: 1
+const GOOD_YAML = `haversack: 1
 project: demo
 targets: [claude-code]
 context:
@@ -263,5 +263,38 @@ checks:
     });
     const result = await loadProject({ cwd: dir });
     expect(result.config.project).toBe("demo");
+  });
+});
+
+describe("legacy spec key (ADR 002)", () => {
+  const FILES = {
+    "context/product.md": "ctx\n",
+    "rules/coding.md": "ok\n",
+  };
+
+  it("loads a legacy `runtime: 1` project with a deprecation warning", async () => {
+    const dir = await project({ "project.yaml": GOOD_YAML.replace("haversack: 1", "runtime: 1"), ...FILES });
+    const result = await loadProject({ cwd: dir });
+    expect(result.config.runtime).toBe(1);
+    const dep = result.warnings.find((w) => w.code === "legacy_spec_key");
+    expect(dep?.message).toMatch(/haversack/);
+  });
+
+  it("loads `haversack: 1` without the deprecation warning", async () => {
+    const dir = await project({
+      "project.yaml": GOOD_YAML,
+      ...FILES,
+    });
+    const result = await loadProject({ cwd: dir });
+    expect(result.config.haversack).toBe(1);
+    expect(result.warnings.some((w) => w.code === "legacy_spec_key")).toBe(false);
+  });
+
+  it("refuses a project.yaml that sets both spec keys (ambiguity)", async () => {
+    const dir = await project({
+      "project.yaml": GOOD_YAML.replace("haversack: 1", "haversack: 1\nruntime: 1"),
+      ...FILES,
+    });
+    await expect(loadProject({ cwd: dir })).rejects.toThrowError(/exactly one/);
   });
 });

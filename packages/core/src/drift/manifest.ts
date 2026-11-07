@@ -1,6 +1,6 @@
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { MANIFEST_REL_PATH } from "../constants.js";
+import { LEGACY_MANIFEST_REL_PATH, MANIFEST_REL_PATH } from "../constants.js";
 import { normalizeText, sha256Hex } from "../parse/files.js";
 import { writeTextFileAtomic } from "../parse/write.js";
 
@@ -17,8 +17,11 @@ export interface ManifestFileEntry {
  * recursively sorted keys, 2-space indent, trailing newline.
  */
 export interface Manifest {
-  runtime: number;
-  /** e.g. "runtime@0.1.0" */
+  /** Spec version recorded by the writing CLI (ADR 002). */
+  haversack?: number;
+  /** Legacy field from the Project Runtime era — accepted on read (ADR 002 §3.1). */
+  runtime?: number;
+  /** e.g. "haversack@0.2.0" (was "runtime@0.1.0") */
   generator: string;
   /** Keyed by repo-relative POSIX path. */
   files: Record<string, ManifestFileEntry>;
@@ -49,27 +52,40 @@ export interface ReadManifestResult {
   manifest: Manifest | undefined;
   /** True when a manifest exists but could not be parsed. */
   corrupt: boolean;
+  /** Repo-relative path the manifest was read from (legacy .runtime/ when adopted). */
+  sourcePath: string;
 }
 
 export async function readManifest(repoRoot: string): Promise<ReadManifestResult> {
+  // Current location first; the legacy Project Runtime location is adopted
+  // when the new one does not exist yet (ADR 002 §3.1).
   let raw: string;
+  let sourcePath = MANIFEST_REL_PATH;
   try {
     raw = await readFile(manifestAbsPath(repoRoot), "utf8");
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return { manifest: undefined, corrupt: false };
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      return { manifest: undefined, corrupt: true, sourcePath };
     }
-    return { manifest: undefined, corrupt: true };
+    sourcePath = LEGACY_MANIFEST_REL_PATH;
+    try {
+      raw = await readFile(path.join(repoRoot, LEGACY_MANIFEST_REL_PATH), "utf8");
+    } catch (legacyError) {
+      if ((legacyError as NodeJS.ErrnoException).code === "ENOENT") {
+        return { manifest: undefined, corrupt: false, sourcePath: MANIFEST_REL_PATH };
+      }
+      return { manifest: undefined, corrupt: true, sourcePath };
+    }
   }
 
   try {
     const parsed = JSON.parse(raw) as Manifest;
     if (parsed && typeof parsed === "object" && parsed.files && typeof parsed.files === "object") {
-      return { manifest: parsed, corrupt: false };
+      return { manifest: parsed, corrupt: false, sourcePath };
     }
-    return { manifest: undefined, corrupt: true };
+    return { manifest: undefined, corrupt: true, sourcePath };
   } catch {
-    return { manifest: undefined, corrupt: true };
+    return { manifest: undefined, corrupt: true, sourcePath };
   }
 }
 

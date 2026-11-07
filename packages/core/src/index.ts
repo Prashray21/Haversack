@@ -8,6 +8,7 @@ export * from "./adapters/types.js";
 export * from "./adapters/registry.js";
 export * from "./adapters/header.js";
 export * from "./adapters/claude-code.js";
+export { CURSOR_MDC_PATH, LEGACY_CURSOR_MDC_PATH, cursorAdapter } from "./adapters/cursor.js";
 export * from "./drift/manifest.js";
 export * from "./drift/detect.js";
 export * from "./secrets/scan.js";

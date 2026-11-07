@@ -27,7 +27,7 @@ const response = await fetch(`https://api.github.com${apiPath}`, {
   headers: {
     authorization: `Bearer ${token}`,
     accept: "application/vnd.github+json",
-    "user-agent": "project-runtime-maintenance",
+    "user-agent": "haversack-maintenance",
     "x-github-api-version": "2022-11-28",
   },
   body: bodyArg ? JSON.stringify(JSON.parse(bodyArg)) : undefined,
