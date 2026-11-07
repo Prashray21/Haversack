@@ -43,9 +43,9 @@ on pull requests does not exist yet; nothing gates a PR until the App ships.
 - **Managed MCP gateway** (F4): Phase 2; `integrations:` validates but is
   inert (D7).
 - **Skills** (F7), living context (F3): not started.
-- **LLM-judged checks in production**: implemented and mock-tested, but the
-  live path is **unverified** — the live test needs an `OPENAI_API_KEY` and
-  has not run against the real API yet.
+- **LLM-judged checks**: implemented and mock-tested; labeled
+  **experimental, unverified live** — the live test needs an `OPENAI_API_KEY`
+  and has not run against the real API yet.
 - **Signed/notarized binaries**: Windows binaries are unsigned (SmartScreen
   warns), macOS binaries are ad-hoc signed (Gatekeeper warns; not
   notarized). SHA-256 verification via `SHA256SUMS.txt` is the integrity

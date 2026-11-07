@@ -59,7 +59,7 @@ program
 
 program
   .command("check")
-  .description("run the project's checks locally (static now; llm-judged rules report skipped)")
+  .description("run the project's checks locally (static checks; llm-judged checks are experimental, unverified live, and skipped without configuration)")
   .option("--base <ref>", "only evaluate the added lines of `git diff <base>`")
   .option("--json", "machine-readable output")
   .action(async (options) => {
