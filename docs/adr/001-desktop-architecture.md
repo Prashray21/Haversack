@@ -1,213 +1,326 @@
 # ADR 001 — Desktop architecture (Phase A: native Windows app)
 
-**Status:** Proposed — awaiting owner approval
-**Date:** 2026-11-07
-**Scope decision it serves:** Phase A = a native Windows (x64) desktop app for
-Project Runtime, local-first, with an optional Supabase team layer. GitHub App
-PR enforcement does NOT exist yet (later phase) and this app does not pretend
-otherwise — see "Honesty constraints" below.
+**Status:** Revised per owner review 2026-11-07 — direction approved
+(**Electron**); document NOT yet final. Track paused until the owner confirms
+the product rename to **Orbit** is done (§11).
+**Date:** 2026-11-07 (revised same day after owner review)
+**Scope:** Phase A = a native Windows (x64) desktop app for Project Runtime,
+local-first, with an optional Supabase team layer. GitHub App PR enforcement
+does NOT exist (later phase) — see §12 "Honesty constraints".
 
 ## 1. Context and constraints (measured, not assumed)
 
-- Repo: TypeScript pnpm monorepo, ESM (`"type": "module"`), plain `tsc` builds,
-  vitest. Packages: `@runtime/core` (engine), `@runtime/cli`. `pnpm-workspace.yaml`
-  already includes `apps/*`.
-- `@runtime/core` dependencies today: `zod ^4.1.0`, `yaml`, `picomatch`
-  (`packages/core/package.json`). Zod already exists → the IPC layer can reuse
-  it for validation without a new dependency.
-- Machine (dev PC, measured 2026-11-07): Windows 11 x64 (build 26200), Node
-  24.14.1, pnpm 12.16.1, git 2.53.0. **No elevation rights**; **C: has 1.5 GB
-  free**, D: has 128 GB — owner has approved D: for all storage (tool caches,
-  future WSL/Docker images). **MSVC Build Tools + Windows SDK are absent**
-  (`cl.exe` not found, no `Windows Kits\10\Include`). Rust/cargo absent.
-  WebView2 runtime present (156.0.4314.58). RAM 15.6 GB.
-- CI: GitHub Actions, `windows-latest`, green required on every pushed milestone
-  commit. Solo developer. Repo stays private (D12).
-- Signing: none today (CLI release v0.1.0 is unsigned; SmartScreen behavior is
-  documented in `CHANGELOG.md` and `docs/TESTING.md`). Code signing is roadmap
-  item G — out of scope for Phase A.
+- Repo: TypeScript pnpm monorepo, ESM, plain `tsc` builds, vitest.
+  `@runtime/core` deps today: `zod ^4.1.0`, `yaml`, `picomatch` — zod already
+  present, so the IPC layer reuses it (no new dependency for validation).
+- Machine (measured 2026-11-07): Windows 11 x64 (26200), Node 24.14.1,
+  pnpm 12.16.1, git 2.53.0. **No elevation**; **C: 1.5 GB free**, D: 128 GB —
+  owner approved D: for all storage. **MSVC Build Tools + Windows SDK absent**
+  (irrelevant for Electron). WebView2 156.0.4314.58 present. RAM 15.6 GB.
+- CI: `windows-latest` green required per milestone commit. Solo dev. Repo
+  stays private (D12).
+- Signing: none in Phase A (owner decision #2). Roadmap G will research it
+  with citations.
+- The product is being renamed to **Orbit** (owner, 2026-11-07). No installer
+  or binary identity may be chosen until that rename is confirmed — §11.
 
-## 2. Electron vs Tauri — comparison for THIS repo
+## 2. Electron vs Tauri — comparison for THIS repo (retained from v1; decision unchanged)
 
 | Axis | Electron | Tauri v2 |
 | --- | --- | --- |
-| **Reusing `packages/core`** | **Direct `import` in the main process** — main is a Node process; core's Node-based engine (fs, realpath guards, secret scan) runs in-process with zero protocol code. Core's existing vitest suites cover the exact code path the app executes. | Core cannot be imported into the Rust host. Options: (a) sidecar process — we already ship a Node SEA `runtime.exe` (v0.1.0), but every operation becomes a second IPC protocol (app→sidecar) stacked on app→renderer IPC, plus process lifecycle management and packaging of two binaries; (b) reimplement core in Rust — forbidden by "core logic stays in packages/core, never copied". |
-| **Local toolchain needed** | **None.** Node+pnpm+git already present. electron-builder downloads NSIS at build time (cache redirectable to D:). | Rust MSVC toolchain (rustup) **plus** "Desktop development with C++" Build Tools workload (official prerequisite) — ~4–8 GB, elevation-gated on this PC, C:-resident by default, MSVC currently absent. Buildable, but it is the single biggest install/fragility cost for a solo Windows-only dev. |
-| **Bundle size** | Installer ≈ 80–100 MB, installed ≈ 250–300 MB (Chromium+Node embedded; same order as the existing SEA `runtime.exe`). | ≈ 5–15 MB (relies on the OS WebView2). Tauri wins clearly; weight matters little for an internal-phase tool on machines with GB-scale disks. |
-| **Security model** | Documented, prescriptive defaults: `contextIsolation` on (since 12), `nodeIntegration` off (since 5), renderer sandbox on (since 20), CSP guidance, IPC sender validation guidance (official security tutorial, cited below). Sufficient for our model if followed exactly. | Capability-based allowlists in Rust; also strong. No advantage that changes our design (both models demand the same discipline: no remote content, validated IPC). |
-| **Session storage** | `safeStorage` is built in: **DPAPI on Windows**, main-process-only API (`encryptString`/`decryptString` + async variants). Zero extra dependencies. Documented caveat: protects against other users, not other apps in the same Windows session (accepted; same class of protection as VS Code and other DPAPI-based apps). | Plugins exist (OS keyring, stronghold), but they are extra third-party plugin dependencies in a second language ecosystem. |
-| **Auto-update** | `electron-updater`: **NSIS is the supported Windows target** ("Squirrel.Windows is not supported"), sha512 of every artifact verified against the manifest, Ed25519-signed manifests available, `.blockmap` differential downloads, providers include a **generic HTTP(s) server** — testable end-to-end on this PC against a local static server. **Code signing is NOT required on Windows** (mandatory only for macOS auto-update). | Updater **requires** its own minisign-style signatures: "This cannot be disabled." Extra key ceremony; key loss permanently breaks updates to installed apps. Testable, but more moving parts for the same outcome. |
-| **Installer format** | NSIS via electron-builder (assisted, per-user option, familiar, downloads tooling automatically). | NSIS or MSI via Tauri bundler (MSI needs a VBSCRIPT optional feature Windows is deprecating). |
-| **Webview** | Ships Chromium — consistent rendering everywhere, big download. | OS WebView2 — already present here (156.0.4314.58) and on Win10 1803+. Small download, rendering varies with OS patch level. |
+| Reusing `packages/core` | **Direct import** in a Node-capable process; no protocol code; core's own test suites cover the exact code path. | Sidecar process (second IPC protocol + second binary) or engine copy (forbidden). |
+| Local toolchain | **None** (Node+pnpm+git present). | Rust MSVC toolchain + "Desktop development with C++" Build Tools (official prerequisite) — ~4–8 GB, elevation-gated here. |
+| Bundle size | ≈ 85–115 MB installer (estimate, §10) | ≈ 5–15 MB (relies on OS WebView2). |
+| Security model | Documented defaults: `contextIsolation` on, `nodeIntegration` off, sandbox on, CSP + IPC-sender guidance (cited). | Capability allowlists; same discipline required. |
+| Session storage | Built-in `safeStorage` → **DPAPI on Windows**. | Third-party keyring/stronghold plugins. |
+| Auto-update | `electron-updater` NSIS + sha512 — **not used, see §9** (owner decision #3). | Mandatory minisign signatures ("cannot be disabled"). |
+| Installer | NSIS via electron-builder (cited). | NSIS or MSI (MSI needs VBSCRIPT, being deprecated). |
 
-### Decision: **Electron**
+## 3. Decision: Electron
 
-Ranked reasons:
+Reasons (ranked):
 
-1. **Core reuse is direct, not protocol-shaped.** The app's entire value is
-   running `packages/core` against a user-chosen folder. Electron imports it
-   in-process; Tauri forces a sidecar CLI (second IPC protocol, second binary,
-   process management) or an engine copy (forbidden). This dominates the
-   decision.
-2. **Zero new local toolchain.** No elevation, no MSVC, no Rust — nothing to
-   install on a C:-constrained machine. Tauri needs ~4–8 GB of elevation-gated
-   tooling for this PC alone.
-3. **Built-in DPAPI session storage** (`safeStorage`) and an **auto-update path
-   that works unsigned on Windows** (sha512 + optional signed manifests, NSIS,
-   generic provider testable locally) — both map 1:1 onto A6/A7 requirements
-   with the fewest dependencies.
-4. Accepted cost: ~90 MB installer vs ~10 MB. Irrelevant for a Windows-only
-   internal tool phase.
+1. **Direct core reuse** — no sidecar protocol, no engine copy.
+2. **Zero new local toolchain** — no elevation, no MSVC, no Rust on a
+   C:-constrained machine.
+3. **Built-in DPAPI session storage** (`safeStorage`) — §7.
+4. Accepted cost: ~90 MB-class installer vs ~10 MB-class. Irrelevant here.
 
-## 3. Security model (concrete, per official docs)
+## 4. Core execution model: utility process, never the main process
 
-- **Renderer isolation:** `BrowserWindow` created with `contextIsolation: true`,
-  `nodeIntegration: false`, `sandbox: true`. Renderer loads only local, bundled
-  content (vite build output via a custom `app://` protocol or `loadFile`); no
-  remote content, `webSecurity` never disabled, navigation locked via
-  `will-navigate` + `setWindowOpenHandler` (deny-by-default), permission
-  requests denied via `setPermissionRequestHandler`.
-- **CSP:** strict `<meta>` CSP in the renderer HTML: `default-src 'self'`;
-  `script-src 'self'`; `connect-src 'self'` (Supabase calls happen **in the
-  main process**, so the renderer needs no network at all — strongest CSP).
-- **IPC:** one narrow `contextBridge` API. No raw `ipcRenderer` exposure; no
-  arbitrary channel or path passthrough. Every channel: fixed name + zod schema
-  (reusing the zod already in core) validating arguments in the **main**
-  process; sender validation per official guidance. Main returns plain data —
-  never Node primitives, functions, or fs handles.
-- **Supabase session storage:** access/refresh tokens held **only in the main
-  process**, encrypted at rest with `safeStorage` (DPAPI on Windows) under the
-  app's user-data dir. Renderer receives derived facts ("signed in as
-  a@b.c, role owner"), never tokens. Sign-out deletes the stored blob
-  (A6 verifies). Service-role key: the app has no field, setting, env var, or
-  code path for it; a build-time test greps the bundle for the service-role key
-  pattern (A6) and fails the build on a hit.
-- **File-system scope:** the only fs entry points are (a) folder picked via the
-  native `showOpenDialog` (renderer cannot supply a path — the dialog result
-  stays in main), and (b) recently-opened list re-opening an exact prior path.
-  All reads/writes go through `packages/core`, which already enforces the
-  realpath escape guards (BUG-001 fix, `packages/core/src/parse/files.ts`),
-  atomic writes (BUG-005 fix), and binary-file handling.
-- **Secrets found by the secret gate:** core's D8 semantics — findings are
-  **redacted** (value never materializes). The UI renders `file:line`, rule,
-  redacted snippet only. Redacted findings are what gets uploaded in team mode
-  (A6 tests that a planted secret blocks upload). Secret values are never
-  logged, never written to disk outside the repo, never sent anywhere.
+**Rule (owner amendment a):** all `packages/core` operations (init, sync,
+verify, check, drift) run in an **Electron `utilityProcess`** — never in the
+main process. A per-operation hard timeout in the main process **kills** the
+utility process on breach (`child.kill()`; the docs guarantee the `'exit'`
+event after termination) and reports the operation as failed — never a
+silent pass.
 
-## 4. Data flow
+Why: repo-defined regexes (check `pattern`s, `secrets.ignore`) are untrusted
+input. The core engine's per-check time budget is cooperative
+(1 s → `skipped`, `packages/core/src/constants.ts`) and its documented
+residual risk (`docs/BUGS.md` BUG-003) is a single synchronous
+`regex.test` call that cannot be interrupted — a process boundary with a hard
+kill is the backstop the cooperative budget cannot provide.
+
+Options verified from official docs:
+
+- **`utilityProcess`** (chosen) — "provides the equivalent of
+  `child_process.fork` API from Node.js but instead uses Services API from
+  Chromium to launch the child process"; message ports via
+  `process.parentPort` / `postMessage`; `'exit'` event; `child.kill()`.
+  Source: https://www.electronjs.org/docs/latest/api/utility-process
+- **Node `worker_threads`** (rejected) — can be terminated, but shares the
+  process (weaker isolation boundary for hostile input) and interacts poorly
+  with the `runAsNode`/fork fuse posture below.
+- Fuse interplay: disabling the `runAsNode` fuse breaks
+  `child_process.fork`; the Fuses documentation itself points to Utility
+  Processes as the replacement (https://www.electronjs.org/docs/latest/tutorial/fuses)
+  — consistent with this choice.
+
+Renderer ⇄ main ⇄ utility-process: two message hops, both zod-validated at
+the receiving end.
+
+## 5. Security model (concrete)
+
+- **Renderer isolation:** `contextIsolation: true`, `nodeIntegration: false`,
+  `sandbox: true`; only bundled local content served via a custom protocol
+  (never remote content); `webSecurity` never disabled; navigation locked:
+  `will-navigate` → `preventDefault()` for anything not our protocol;
+  `setWindowOpenHandler` → deny; permission requests denied by default via
+  `setPermissionRequestHandler`.
+- **CSP (full, owner amendment f), enforced via the protocol handler's
+  response headers and a `<meta>` fallback:**
+
+  ```
+  default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self'
+  ```
+
+  No `'unsafe-inline'` for scripts or styles — styles ship as files; JSX
+  inline `style={}` objects mutate CSSOM (not CSP-blocked), but no component
+  may inject `<style>` elements.
+- **IPC:** fixed channel set exposed via `contextBridge`; **sender-frame
+  validation (origin comparison per the official security tutorial) in
+  addition to zod schema validation** of every payload in the main process.
+  Main returns plain data only.
+- **Supabase session storage (owner amendment c):** a custom storage adapter
+  in the main process backed by `safeStorage` — **no plaintext session is
+  ever written to disk.** If `safeStorage` encryption is unavailable, the app
+  **fails closed**: the session is NOT persisted (in-memory for that run
+  only, gone on exit) and the UI explains why. Tokens never reach the
+  renderer; it receives derived facts only. Sign-out deletes the stored blob.
+- **Connect-to-team screen (owner amendment d):** accepts a Supabase project
+  URL + PUBLIC anon key. Validation requires **HTTPS** (localhost `http://`
+  allowed only when a dev flag for local Supabase testing is set — never in
+  packaged builds). The target **host is displayed prominently** on the
+  screen, and sign-in requires an explicit confirmation step showing it
+  ("You are about to sign in to `https://<host>`").
+- **File-system scope:** fs entry points = native `showOpenDialog` (result
+  stays in main) or re-opening a recently-opened path. All repo I/O flows
+  through `packages/core` — same realpath escape guards (BUG-001 fix), atomic
+  writes (BUG-005), binary handling. **A malicious repo's `project.yaml` and
+  context/rules files go through exactly the same path-escape and secret-gate
+  protections as the CLI** (same code, same tests) — and the check patterns
+  they define additionally run inside the killed-on-timeout utility process
+  (§4).
+- **Secrets in the UI (D8 semantics):** secret-gate findings are **redacted
+  only** — `file:line`, rule, redacted snippet; the value never materializes
+  in UI, logs, or uploads.
+- **Uploaded findings (owner amendment e):** by default a finding carries
+  **file path, line, rule id, severity — no content**. Uploading source
+  snippets is **opt-in per workspace** (default off), and even then snippets
+  pass the secret gate first. Docs must state: source snippets remain private
+  code; only workspaces that explicitly opt in see them.
+
+## 6. Data flow
 
 ```
 Renderer (sandboxed, CSP 'self', no Node, no network)
-   │  typed IPC channels (contextBridge; zod-validated in main)
+   │  typed IPC (contextBridge; sender-frame + zod validated in main)
    ▼
-Main process (Node)
-   ├──► @runtime/core  — init / sync / verify / check / drift on the
-   │                     user-chosen repo folder (local mode needs nothing else)
-   └──► Supabase (optional) — supabase-js over HTTPS with PUBLIC anon key
-         + user JWT from Supabase Auth. EVERY table RLS default-deny;
-         role checks via is_member(workspace_id, min_role).
-         No service-role key exists anywhere in app code, config, or logs.
+Main process (Node) — orchestration only; no untrusted code runs here
+   │  postMessage / parentPort (zod-validated both ends)
+   ▼
+Utility process — @runtime/core (init/sync/verify/check/drift) on the
+   │                user-chosen repo folder; killed on timeout
+   ▼
+Main ──► Supabase (optional): supabase-js over HTTPS, PUBLIC anon key +
+          user JWT; every table RLS default-deny; is_member() roles.
+          Service-role key has no field, setting, env var, or code path;
+          build-time bundle pattern test fails on a hit (A6).
 ```
 
-## 5. Threat model (Phase A scope)
+## 7. Hardening checklist (owner amendment g)
+
+| # | Hardening | Detail |
+| --- | --- | --- |
+| 1 | Fuses flipped at build via **`@electron/fuses`** (official tooling, cited) | **Disable:** `runAsNode`, `nodeOptions`, `nodeCliInspect`, `grantFileProtocolExtraPrivileges` (we serve via custom protocol, not `file://`). **Enable:** `cookieEncryption`, `embeddedAsarIntegrityValidation`, `onlyLoadAppFromAsar` (docs: combined, "it is impossible to load non-validated code"). |
+| 2 | IPC sender-frame validation | Origin comparison on every message, in addition to schema validation. |
+| 3 | No `shell.openExternal` on untrusted URLs | External opens (docs links only) restricted to an https allowlist of our own domains; everything else ignored. |
+| 4 | Navigation + window lockdown | `will-navigate` prevent, `setWindowOpenHandler` deny, permission handler deny-by-default. |
+| 5 | DevTools disabled in packaged builds | Not openable when `app.isPackaged`; `nodeCliInspect` fuse disabled removes the debug-port path. |
+| 6 | No telemetry, no crash-report uploads | `crashReporter` never started; no analytics code or calls. |
+| 7 | Log redaction in main | A redaction filter wraps every log write (tokens, keys, secret-shaped strings); logs live in userData only. |
+| 8 | `safeStorage` limits, stated | DPAPI protects session data from **other Windows users**, not from **malware running as the same user** (official docs caveat, cited). Documented in app docs and README. |
+| 9 | Repo content = untrusted input | `project.yaml`/context/rules: same realpath + secret-gate protections as the CLI (§5), plus utility-process isolation (§4). |
+
+## 8. Threat model (Phase A scope)
 
 | Threat | Mitigation | Where tested |
 | --- | --- | --- |
-| Cross-tenant leakage | RLS default-deny on every table; `is_member()` helper; viewer/member/admin/owner roles; anon key alone yields nothing | A5 automated DB tests (user A vs B, viewer write, anon) |
-| Token theft from disk | DPAPI-encrypted session blob in user-data dir; tokens never in renderer, never in localStorage; sign-out wipes | A6 (sign-out test), A8 (uninstall/credential-removal evidence) |
-| Malicious repo content (poisoned CLAUDE.md, planted secrets, path escape) | Repo content treated as untrusted data, never executed by the app; core realpath guards; secret gate before every upload, redacted display; header-anchoring prevents spoofed generated-file overwrites | Existing core tests (BUG-001/002) + A6 upload-gate test |
-| IPC abuse from a compromised renderer | Fixed channel set, zod-validated args in main, sender validation, sandboxed renderer, no fs/network authority in renderer | A2 IPC contract tests |
-| Update-channel tampering | electron-updater verifies sha512 of every artifact; signed update manifests (Ed25519) before any download; HTTPS-only provider; unsigned NSIS binary residual risk documented (SmartScreen + SHA256SUMS, same policy as the CLI) | A7 end-to-end update test |
-| Injection (HTML/SQL/path) | No remote content; strict CSP; DB access only via supabase-js parameterized PostgREST (no raw SQL from the app); all paths flow through core's resolve+realpath guards | A3/A6 UI + core test suites |
+| Cross-tenant leakage | RLS default-deny on every table; `is_member()`; 4 roles; anon key alone yields nothing | A5 automated DB tests |
+| Token theft from disk | safeStorage/DPAPI adapter, fail-closed (§5); tokens never in renderer/localStorage; sign-out wipes | A6 sign-out test; A8 uninstall evidence |
+| Malicious repo content | Untrusted data, never executed by the app; realpath guards + secret gate; check patterns run in a killable utility process; redacted display; gate before every upload | Core regression tests + A6 upload-gate test |
+| IPC abuse from a compromised renderer | Fixed channels, sender-frame + zod validation, sandboxed renderer, no fs/network authority in renderer | A2 IPC contract tests |
+| Malicious installer substitution (manual updates — there is no in-app update channel to tamper with) | Downloads only over HTTPS from this repo's GitHub Releases; SHA-256 verification via `SHA256SUMS.txt` is the integrity mechanism (same as the CLI); unsigned residual → SmartScreen warning, stated plainly | A7 install evidence; README (A9) |
+| Injection (HTML/SQL/path) | No remote content; full CSP (§5); DB only via parameterized PostgREST; all paths through core guards | A3/A6 suites |
 
-## 6. Installer and update plan
+## 9. Updates: NONE in Phase A (owner decision #3) — manual only
 
-- **Format:** NSIS via electron-builder; per-user install (no elevation needed
-  by end users), desktop + start-menu shortcuts.
-- **Updates:** `electron-updater` with the **generic HTTPS provider**, pointed
-  at a static file host we control (GitHub Releases private repo is the
-  fallback). sha512 always verified; we enable Ed25519 **signed manifests**
-  (v27 feature) so the manifest is not protected by transport alone. A7
-  delivers an end-to-end tested update (old version → new version) served from
-  a local server in the test, mirroring production config. If this cannot be
-  tested end to end, ADR falls back to documented manual updates per the
-  session spec.
-- **Unsigned reality:** installers are unsigned in Phase A → SmartScreen
-  "Unknown publisher — More info → Run anyway" on first run; stated plainly in
-  README (A9) exactly like the CLI release. Cost/process of code signing is a
-  roadmap-G decision: current CA pricing will be researched with citations when
-  we get there (not guessed now — marked *needs verification* per the truth
-  rule).
+- No auto-update code ships in Phase A; `electron-updater` is **removed from
+  the dependency list** (§10).
+- Verified reason, with citation: for a **private** GitHub Releases repo,
+  electron-updater's documented mechanism is the `GH_TOKEN` **environment
+  variable set on the user's machine** ("You can use a private repository for
+  updates with electron-updater by setting the GH_TOKEN environment variable
+  (on user machine) and private option"), and the docs themselves warn
+  "Private GitHub provider only for very special cases — not intended and not
+  suitable for all users" (https://www.electron.build/docs/features/auto-update).
+  On this private repo, workable options reduce to asking every teammate to
+  maintain a GitHub token (unacceptable UX) or embedding a token in the app
+  (forbidden — the service-role/secrets rule applies a fortiori). Neither
+  meets the owner's bar.
+- **Revisit criteria (recorded):** only when updates (a) require no embedded
+  token, and (b) manifests are signed and verified by the app.
+- **Manual update process (documented in README/SELF_HOSTING at A9):**
+  download the new installer from GitHub Releases over HTTPS, verify SHA-256
+  against `SHA256SUMS.txt`, run the assisted installer over the existing
+  install.
+- **Electron patching policy (owner amendment h):** Electron security fixes
+  are frequent; the app **cuts a new build whenever Electron ships a security
+  fix** affecting the runtime — pin bumped, installer rebuilt, SHA256SUMS
+  regenerated, CHANGELOG updated, released under the current Phase A version
+  scheme. The manual-update doc above is how users apply it. This is the
+  standing obligation replacing auto-update.
 
-## 7. Dependency list (asked per rules — approval of this ADR approves these)
+## 10. Installer, size, and what still touches C:
 
-| Package | Kind | Approx. size | Why |
+- **Format:** NSIS, **assisted installer** — `oneClick: false`,
+  `allowToChangeInstallationDirectory: true`, `perMachine: false` (option
+  semantics cited from the official NSIS options reference:
+  https://www.electron.build/v26/docs/nsis). This lets test installs go to
+  D: and end users pick their own drive.
+- **Size estimates** (basis: Electron win-x64 release artifacts are ~90–100 MB
+  in recent majors; exact numbers recorded in AUDIT when A2 produces the
+  first artifact — these are estimates, not measurements):
+  - Installer download: **85–115 MB** — confidence **high** (±10 MB; driven
+    almost entirely by the embedded Chromium+Node).
+  - Installed footprint: **230–330 MB** — confidence **medium-high**.
+  - Pushes it higher: newer Electron majors (Chromium growth); shipping all
+    locales (we strip to English via `electronLanguages`, which pushes it
+    lower); any future native module. Pushes lower: locale stripping.
+- **What still writes to C: even with a D: install directory:**
+  | Location | Content | Typical size |
+  | --- | --- | --- |
+  | `%APPDATA%\<productName>\` (Electron userData) | config, recently-opened list, redacted logs, DPAPI-encrypted session blob, Chromium shader/GPU cache | KBs → tens of MB (cache grows with use) |
+  | Windows Error Reporting (OS-level, if a crash occurs) | local crash reports; we never upload anything | KBs → few MB |
+  | Dev-machine build caches | **redirected to D:** (`ELECTRON_CACHE`, `ELECTRON_BUILDER_CACHE`, pnpm store on the project drive) | 0 on C: |
+  Relocation of userData to D: is possible (`app.setPath`) but is NOT
+  committed for Phase A (candidate setting later; it must not break DPAPI
+  access, which is per-user not per-path).
+
+## 11. App identity — ONE constant, set only after the Orbit rename
+
+Owner decision #5: no `Runtime.Desktop`, no `runtime-desktop.exe`. The product
+is being renamed to **Orbit**; naming is frozen until the owner confirms the
+rename is done. In code there will be exactly **one** identity constant that
+everything else (BrowserWindow title, installer artifact name, `appId`,
+executable name, userData folder) derives from:
+
+```ts
+// apps/desktop/src/shared/identity.ts — values TBD until rename confirmation
+export const APP_IDENTITY = {
+  appId: 'TBD',          // reverse-DNS, set once, never changed afterwards
+  productName: 'TBD',    // "Orbit" family name — owner confirms exact string
+  exeName: 'TBD',
+  userDataDirName: 'TBD',
+} as const;
+```
+
+**Track paused:** A2–A9 do not start until the owner says the rename is done.
+
+## 12. Scope exclusions (owner amendment b + honesty constraints)
+
+- **LLM-judged checks are EXCLUDED from the Phase A app.** The app runs
+  static checks and secret scanning only. This is stated in the ADR scope,
+  in the app UI wherever checks are described, and in all user-facing text
+  (README, CHANGELOG at A9). The CLI keeps them (experimental, unverified
+  live) — the desktop app simply does not expose them.
+- Not built, and listed as such everywhere: GitHub App PR enforcement
+  (webhooks cannot reach a desktop app), MCP gateway, skills, living context,
+  AST checks, import mode, macOS/Linux builds, code signing, auto-update (§9).
+
+## 13. Dependency list — approved with exact pins (owner review #1)
+
+All MIT (license check via `npm view <pkg> license`, 2026-11-07). Exact pins
+from the npm registry the same day; `pnpm audit` runs immediately after
+install in A2 and its output lands in AUDIT. Install scripts allowed for
+**`electron` and `electron-builder` only** (pnpm `allowBuilds` gains exactly
+those two); all caches and build output on D:.
+
+| Package | Pin | Kind | Why |
 | --- | --- | --- | --- |
-| `electron` | dev | ~100 MB download (embedded Chromium+Node; ships in installer) | Runtime shell |
-| `electron-builder` | dev | ~25 MB incl. deps (build machine only) | NSIS packaging + SHA256SUMS |
-| `electron-updater` | runtime (main) | ~1 MB | A7 auto-update |
-| `vite` + `@vitejs/plugin-react` | dev | ~50 MB on disk, build machine only | Renderer bundling; main/preload stay plain `tsc` (repo convention) |
-| `react`, `react-dom` + matching `@types/*` | runtime (bundled) | ~55 KB gzipped in bundle; types dev-only | UI framework — largest ecosystem, best TS story; plain CSS, no component kit |
-| `@supabase/supabase-js` | runtime (main) | ~120 KB gzipped | Team layer (auth + PostgREST); main process only |
-| — | — | — | No zod addition (core already has it); no CSS framework; no router (single-window view state); no state lib (React state + IPC callbacks) |
+| `electron` | `45.2.3` | dev | Runtime shell (Chromium+Node embedded) |
+| `electron-builder` | `26.18.0` | dev | NSIS packaging + SHA256SUMS |
+| `@electron/fuses` | `2.1.3` | dev | Official fuse-flipping utility (docs: "a JavaScript utility designed to make flipping these fuses easy") — required by hardening item 1 |
+| `vite` | `8.3.6` | dev | Renderer bundling; main/preload stay plain `tsc` |
+| `@vitejs/plugin-react` | `6.2.1` | dev | React support in vite |
+| `react` / `react-dom` | `19.3.1` / `19.3.1` | runtime (bundled) | UI framework (owner decision #4) |
+| `@types/react` / `@types/react-dom` | `19.3.0` / `19.3.0` | dev | Types |
+| `@supabase/supabase-js` | `2.119.0` | runtime (main) | Team layer (auth + PostgREST) |
+| ~~`electron-updater`~~ | — | — | **Removed** by owner decision #3 (§9) |
 
-pnpm build-script allowlist (`pnpm-workspace.yaml` `allowBuilds`) gains
-`electron` (postinstall downloads the binary) — mechanism verified at A2, and
-CI build is the regression guard. All caches (`ELECTRON_CACHE`,
-`electron-builder` cache, `vite` cache) redirected to D:.
+No zod addition (core already has it); no CSS framework; no router; no state
+library.
 
-## 8. Day estimates (realistic, solo, includes tests+docs)
+## 14. Day estimates (unchanged from v1)
 
-| Milestone | Days |
-| --- | --- |
-| A2 Monorepo wiring + IPC + CI build | 1 |
-| A3 Local mode UI | 3–4 |
-| A4 Schema + migrations + setup.sql + DATABASE.md | 1.5–2 |
-| A5 DB tests (needs WSL2+Docker installed by owner first) | 1–1.5 |
-| A6 Team features + upload gate + service-role pattern guard | 3–4 |
-| A7 Installer + update E2E | 1–2 |
-| A8 E2E on this PC + real screenshots | 1 |
-| A9 Docs + release candidate | 1 |
-| **Total** | **12.5–17 dev-days** |
+A2 wiring 1 · A3 local UI 3–4 · A4 schema 1.5–2 · A5 DB tests 1–1.5 (needs
+owner-installed WSL2+Docker) · A6 team features 3–4 · A7 installer+uninstall
+evidence 1–2 (auto-update work removed) · A8 E2E + screenshots 1 · A9 docs+RC
+1 → **total ≈ 12.5–17 dev-days**.
 
-## 9. Open questions for the owner (answer with "approved" or alongside)
+## 15. Owner decisions recorded (2026-11-07 review)
 
-1. **Dependency list** — approve the 6 additions in §7?
-2. **Signing** — confirm: unsigned in Phase A (SmartScreen warning documented),
-   signing researched properly at roadmap G.
-3. **Auto-update** — build it in A7 (generic provider, end-to-end tested), or
-   document manual updates for now? Recommendation: build it.
-4. **App identity** — name/product id for installer metadata: propose
-   "Project Runtime" desktop app, product id `Runtime.Desktop`, exe
-   `runtime-desktop.exe`.
-5. **React** — OK, or prefer a lighter option (Preact ~4 KB)? Recommendation:
-   React.
+1. Dependencies: approved with exact pins + license check; install scripts
+   electron/electron-builder only; D: caches; audit after install.
+   electron-updater removed; @electron/fuses added (docs-backed).
+2. Unsigned in Phase A; SmartScreen warning stated plainly in README.
+3. No auto-update; manual updates; reasons + revisit criteria in §9.
+4. React approved.
+5. No Runtime.Desktop naming; identity via one constant after Orbit rename
+   confirmed; track paused until then.
 
-## 10. Honesty constraints carried into all Phase A text
+Remaining before A2: owner confirms the Orbit rename is done. (Supabase CLI
+route + WSL2/Docker install remain owner-side prerequisites before A5.)
 
-Not built and must be listed as such wherever the app, README, or release
-notes describe scope: GitHub App PR enforcement (webhooks cannot reach a
-desktop app — enforcement is a later hosted phase), MCP gateway, skills,
-living context, AST checks, import mode, macOS/Linux builds, code signing.
+## 16. Sources (official, fetched 2026-11-07)
 
-## Sources (official, fetched 2026-11-07)
-
-- Electron security tutorial — contextIsolation/nodeIntegration/sandbox
-  defaults, CSP, IPC sender validation, remote-content rules:
+- Electron security tutorial:
   https://www.electronjs.org/docs/latest/tutorial/security
-- Electron `safeStorage` — DPAPI on Windows, main-process-only API, caveats:
+- Electron `safeStorage` (DPAPI on Windows; other-users caveat):
   https://www.electronjs.org/docs/latest/api/safe-storage
-- electron-builder auto-update — "Windows: NSIS", "Squirrel.Windows is not
-  supported", providers incl. generic HTTP(s), sha512 verification, signed
-  manifests, "macOS application must be signed in order for auto updating to
-  work" (Windows unsigned updates install with sha512 checks):
+- Electron `utilityProcess` (fork-equivalent via Chromium Services API,
+  `'exit'`, `kill()`, parentPort):
+  https://www.electronjs.org/docs/latest/api/utility-process
+- Electron Fuses (fuse list, defaults, `@electron/fuses` official tooling,
+  runAsNode→utility-process note, ASAR integrity):
+  https://www.electronjs.org/docs/latest/tutorial/fuses
+- electron-builder auto-update (private repo `GH_TOKEN` on user machine;
+  "Private GitHub provider only for very special cases"):
   https://www.electron.build/docs/features/auto-update
-- electron-builder signed update manifests — "electron-updater always verifies
-  the sha512 checksum of a downloaded artifact against the update manifest":
-  https://github.com/electron-userland/electron-builder/blob/master/website/docs/features/signed-update-manifests.md
-- Tauri v2 prerequisites — "Desktop development with C++" Build Tools workload,
-  Rust MSVC toolchain, WebView2 (present on Win10 1803+), VBSCRIPT for MSI:
+- electron-builder NSIS options (`oneClick`, `allowToChangeInstallationDirectory`):
+  https://www.electron.build/v26/docs/nsis
+- Tauri v2 prerequisites (MSVC workload, Rust, WebView2) — comparison only:
   https://v2.tauri.app/start/prerequisites/
-- Tauri v2 updater — "Tauri's updater needs a signature to verify that the
-  update is from a trusted source. This cannot be disabled."; key loss = cannot
-  publish updates: https://v2.tauri.app/plugin/updater/
+- Tauri v2 updater (signatures mandatory) — comparison only:
+  https://v2.tauri.app/plugin/updater/
