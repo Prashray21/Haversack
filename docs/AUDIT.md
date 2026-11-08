@@ -1,5 +1,12 @@
 # MVP Audit — 2026-11-07
 
+## 2026-11-08 — v0.2.0-alpha.1 SHIPPED (owner "ship it")
+
+- Tag `v0.2.0-alpha.1` pushed after main CI green (`42467209609`); Release workflow run `42467342843` success (1m59s). Release verified via gh: `isPrerelease:true`, `isDraft:false`, notes from CHANGELOG.
+- Assets: `haversack-{linux-x64, macos-arm64, macos-x64, windows-x64.exe}` + `SHA256SUMS.txt` (workflow) + `Haversack-Setup-0.2.0-alpha.1.exe` (122,881,989 bytes, SHA-256 `92b6b18f8183ed7569ebcbb2f9468a745836bf319ca81d1743e94dfd4c0a328e`) + `.sha256` — desktop installer uploaded via gh. **Self-caught correction**: the first upload was the pre-userData-fix build (`e76fb191…`); replaced with the fully-fixed `release-a3` build (`92b6b18f…`) via `--clobber` — the shipped artifact is the exact binary the uninstall-wipe evidence used.
+- Version bump: all four package.json files → `0.2.0-alpha.1`; CLI build injects `CLI_VERSION = 0.2.0-alpha.1`. The version-invariant test failed once against the stale pre-bump dist and passed after rebuild — working as designed, no BUGS.md entry.
+- README rewritten for the current reality: desktop app local mode first (with the four real screenshots), CLI engine second (framing superseded by PRD v0.3), honest not-built list (team layer, second target, auto-update, signing, macOS/Linux).
+
 ## 2026-11-08 — P3 complete (gate posted)
 
 - **Installer evidence on this PC** (assisted NSIS, per-user, unsigned per ADR 001 decision #2):
