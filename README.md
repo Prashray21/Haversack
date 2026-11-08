@@ -2,11 +2,12 @@
 
 **Install your team's skills and MCP servers once. Everyone gets them with one click.**
 
+[![CI](https://github.com/Prashray21/project-runtime/actions/workflows/ci.yml/badge.svg)](https://github.com/Prashray21/project-runtime/actions/workflows/ci.yml)
 ![license](docs/assets/badges/license.svg)
 
 > **Status: v0.2.0-alpha.1 — desktop app, local mode (prerelease).** The Windows desktop app installs skills and MCP server definitions into Claude Code on one machine, with a plan preview, undo, and an uninstall that touches only what it installed. **The team layer is not built yet:** no shared library, no accounts, no invites, no cross-machine sync (Supabase workspace ships in P4/P5 of [docs/PRD.md](docs/PRD.md)). The CLI engine from v0.1.0 is reused inside the app.
 
-- License: MIT. The repository is **private**; file formats and exit codes may change.
+- License: MIT. Pre-1.0: file formats and exit codes may change. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 - Working name: **Haversack** (trademark check pending). Code identity: `@haversackhq`, binary `haversack`.
 
 ## What exists today
@@ -28,7 +29,7 @@ One machine, no account. Works against Claude Code (the first supported target; 
 
 #### Install (Windows x64)
 
-1. Download `Haversack-Setup-<version>.exe` and the matching checksum from the [Releases page](../../releases). The repository is private, so downloading requires repo access.
+1. Download `Haversack-Setup-<version>.exe` and the matching checksum from the [Releases page](../../releases).
 2. Verify: `sha256sum Haversack-Setup-<version>.exe` (or `certutil -hashfile <file> SHA256`) against the published checksum.
 3. Run the installer. It is **unsigned** — Windows SmartScreen will warn ("More info" → "Run anyway"). This is expected for the alpha; code signing is a later phase.
 4. Uninstall from Windows "Installed apps" or `Uninstall Haversack.exe` in the install directory. Uninstalling removes the app **and** the app data directory (`%APPDATA%\Haversack`), including any stored secret values — verified on the dev machine.

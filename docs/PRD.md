@@ -178,7 +178,7 @@ Estimates are for one developer, with low to medium confidence. The main things 
 2. Free for small teams, with pricing for larger ones, or paid from the start?
 3. Does the existing CLI stay as a separate developer tool, or become only the engine inside the app?
 4. Final name, after the trademark check.
-5. Open source, and under which license, for the engine and the app?
+5. Open source, and under which license, for the engine and the app? **Answered 2026-11-08:** the repository is public on GitHub; everything is MIT (the license was already decided).
 6. When the in-app LLM arrives, which providers come first?
 
 ## 14. What carries over from v0.2

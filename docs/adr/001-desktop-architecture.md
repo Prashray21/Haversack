@@ -18,7 +18,8 @@ does NOT exist (later phase) — see §12 "Honesty constraints".
   owner approved D: for all storage. **MSVC Build Tools + Windows SDK absent**
   (irrelevant for Electron). WebView2 156.0.4314.58 present. RAM 15.6 GB.
 - CI: `windows-latest` green required per milestone commit. Solo dev. Repo
-  stays private (D12).
+  stays private (D12). **2026-11-08 update:** the owner made the repository
+  public; this premise changed, recorded in §9's note below.
 - Signing: none in Phase A (owner decision #2). Roadmap G will research it
   with citations.
 - The product is being renamed to **Orbit** (owner, 2026-11-07). No installer
@@ -175,6 +176,12 @@ Main ──► Supabase (optional): supabase-js over HTTPS, PUBLIC anon key +
 | Injection (HTML/SQL/path) | No remote content; full CSP (§5); DB only via parameterized PostgREST; all paths through core guards | A3/A6 suites |
 
 ## 9. Updates: NONE in Phase A (owner decision #3) — manual only
+
+> **2026-11-08 note:** the repository is now **public**, which removes the
+> private-repo premise of the electron-updater reasoning below (public
+> releases need no GH_TOKEN on user machines). The decision stands — no
+> auto-update ships until the owner revisits it — but the "unacceptable UX"
+> analysis no longer applies as written.
 
 - No auto-update code ships in Phase A; `electron-updater` is **removed from
   the dependency list** (§10).
