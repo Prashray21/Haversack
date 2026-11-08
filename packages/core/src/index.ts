@@ -15,6 +15,7 @@ export * from "./secrets/scan.js";
 export * from "./library/item.js";
 export * from "./library/ingest.js";
 export * from "./install/claude-code.js";
+export * from "./install/apply.js";
 export * from "./checks/types.js";
 export * from "./checks/glob.js";
 export * from "./checks/hash.js";
