@@ -14,6 +14,7 @@ export * from "./drift/detect.js";
 export * from "./secrets/scan.js";
 export * from "./library/item.js";
 export * from "./library/ingest.js";
+export * from "./install/claude-code.js";
 export * from "./checks/types.js";
 export * from "./checks/glob.js";
 export * from "./checks/hash.js";
