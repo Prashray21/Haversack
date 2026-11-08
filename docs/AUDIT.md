@@ -1,5 +1,18 @@
 # MVP Audit — 2026-11-07
 
+## 2026-11-08 — P3 complete (gate posted)
+
+- **Installer evidence on this PC** (assisted NSIS, per-user, unsigned per ADR 001 decision #2):
+  - alpha.0 installer `Haversack-Setup-0.2.0-alpha.0.exe`, SHA-256 `229851da2c0ea52fe3f230d917206e03e9717377546eb3d060afd358a17410b1`, `Get-AuthenticodeSignature` → `NotSigned` (expected, documented).
+  - Install → app ran; smoke on the installed exe. **Upgrade**: alpha.1 (fixed) installed over it → `SMOKE_OK {"product":"Haversack","appVersion":"0.2.0-alpha.1","engine":"utility-process","rendered":true}` from `D:\New folder (2)\Haversack\Haversack.exe`.
+  - Secrets: in-app round-trip via the REAL safeStorage path → `SMOKE_SECRET persisted=true roundTrip=true`; `%APPDATA%\Haversack\data\secrets.bin` exists; `grep` for the secret value in the file → count 0 (DPAPI-encrypted blob, not plaintext).
+  - Uninstall → `installdir_exists_exit=2`, `userdata_exists_exit=2`, `secrets_exists_exit=2` (all gone — the stored encrypted secret was wiped with the userData tree), zero Haversack processes.
+- **Two owner-reported/capture-found bugs, fixed + logged in docs/BUGS.md**: BUG-009 (app:// hostname double-counted in the path → renderer 404 "not found" — the owner saw this on opening the app) and BUG-010 (sandboxed preload must be CJS; ESM preload silently killed the bridge). Guard: the smoke gate now FAILS unless `#root` actually mounts and captures renderer console from window creation.
+- **Real screenshots** (1080×720, window capture via PrintWindow PW_RENDERFULLCONTENT; no automation dependency — smoke-only tab-switch hook + `scripts/capture-window.ps1`): `docs/assets/app/{inventory,add-skill,add-mcp-server,secrets}.png` (light/dark follow OS; captured in dark).
+- **Git mishap, self-caught**: a commit accidentally included the electron-builder output dirs (~420k lines incl. a 122 MB exe > GitHub's 100 MB cap) → push rejected → reset (never pushed), output dirs gitignored, re-committed clean. Force-push-free.
+- Verification: typecheck exit 0 (all three packages); core **178 passed** + cli **58 passed | 1 skipped**; CI `42466303155` success. Disk: C: 3.0 GB free (above the 1 GB stop line), D: 124.3 GB.
+- **Honestly not done**: click-through E2E of the file-picker dialogs (folder/zip selection needs a human at the dialog) — the owner's interactive validation per PRD §12 covers exactly this before P4/P5.
+
 ## 2026-11-08 — P3 mid-phase (P3.1 wiring + P3.2 screens)
 
 - Identity: owner confirmed **Haversack** → single `APP_IDENTITY` constant (`apps/desktop/src/shared/identity.ts`), appId `io.github.prashray21.haversack`.
