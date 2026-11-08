@@ -239,6 +239,9 @@ void app.whenReady().then(() => {
   // CI/agent smoke path: prove the pipeline end-to-end, then exit. Not a
   // feature — a testability hook documented here.
   if (process.env.HAVERSACK_SMOKE === "1") {
+    // capturePage can fail with an UnknownVizError on this machine's GPU path;
+    // software rendering in smoke mode avoids it (production runs unchanged).
+    app.commandLine.appendSwitch("disable-gpu");
     mainWindow?.webContents.once("did-finish-load", () => {
       engine
         .invoke("engine.ping", {})
@@ -258,14 +261,35 @@ void app.whenReady().then(() => {
             return;
           }
           const secretValue = process.env.HAVERSACK_SMOKE_SECRET;
-          if (secretValue === undefined) {
+          if (secretValue === undefined && process.env.HAVERSACK_SMOKE_SHOTS === undefined) {
             console.log(`SMOKE_OK ${JSON.stringify({ product: APP_IDENTITY.productName, appVersion: app.getVersion(), engine: "utility-process", rendered: true })}`);
             app.quit();
             return;
           }
+          // Real-screenshot support (BUILD_PROGRAM P3): smoke-only. capturePage
+          // throws UnknownVizError on this machine even with --disable-gpu, so
+          // instead: click the requested tab, signal ready, and KEEP RUNNING —
+          // an external OS screenshot captures the window rect. No automation dep.
+          if (process.env.HAVERSACK_SMOKE_SHOTS !== undefined) {
+            const window2 = mainWindow;
+            if (window2 === undefined) throw new Error("window gone");
+            const tabLabels = ["Inventory", "Add skill", "Add MCP server", "Secrets"];
+            const index = Number.parseInt(process.env.HAVERSACK_SMOKE_SHOTS, 10);
+            const label = tabLabels[index];
+            if (label === undefined) throw new Error(`bad HAVERSACK_SMOKE_SHOTS index ${process.env.HAVERSACK_SMOKE_SHOTS ?? ""}`);
+            await window2.webContents.executeJavaScript(
+              `(() => { const b = [...document.querySelectorAll('button.tab')].find(t => t.textContent?.trim() === ${JSON.stringify(label)}); if (b) b.click(); return b !== undefined; })()`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, 900));
+            if (process.env.HAVERSACK_SHOTS_READY !== undefined) {
+              await import("node:fs/promises").then((fs) => fs.writeFile(process.env.HAVERSACK_SHOTS_READY as string, label));
+            }
+            return; // app stays open; the external capturer stops it
+          }
           // Exercise the REAL protected-store path: store, read back, report
           // match without printing the value. HAVERSACK_SMOKE_KEEP=1 leaves the
           // entry in the store (uninstall-wipe evidence needs a secret present).
+          if (secretValue === undefined) throw new Error("SMOKE_SECRET unset");
           const setResult = await secrets.set("SMOKE_TEST_SECRET", secretValue);
           const readBack = await secrets.get("SMOKE_TEST_SECRET");
           console.log(`SMOKE_SECRET persisted=${String(setResult.persisted)} roundTrip=${String(readBack === secretValue)}`);
