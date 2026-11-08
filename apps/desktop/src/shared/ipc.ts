@@ -23,6 +23,14 @@ export const engineOps = [
   "undo.run",
   "uninstall.skill",
   "uninstall.mcp",
+  "secrets.status",
+  "secrets.set",
+  "secrets.delete",
+  "secrets.names",
+  "mcp.test",
+  "app.env",
+  "dialog.pickFolder",
+  "dialog.pickZip",
 ] as const;
 
 export type EngineOp = (typeof engineOps)[number];
@@ -80,8 +88,11 @@ export const requestSchemas = {
       scope: scopeSchema,
       home: absolutePath,
       projectRoot: absolutePath.optional(),
-      /** Placeholder values come from the OS-protected store in the MAIN process and are
-       *  passed here only for user scope; project scope always expands placeholders. */
+      /**
+       * NEVER sent by the renderer: the main process injects placeholder values
+       * from the OS-protected store before forwarding to the engine
+       * (project scope always expands placeholders — enforced in core).
+       */
       secretValues: z.record(z.string(), z.string()).optional(),
     })
     .strict(),
@@ -103,6 +114,27 @@ export const requestSchemas = {
       force: z.boolean().optional(),
     })
     .strict(),
+  "secrets.status": z.object({}).strict(),
+  "secrets.set": z
+    .object({
+      name: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,127}$/),
+      value: z.string().min(1).max(8192),
+    })
+    .strict(),
+  "secrets.delete": z
+    .object({ name: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,127}$/) })
+    .strict(),
+  "secrets.names": z.object({}).strict(),
+  "mcp.test": z
+    .object({
+      /** Exact argv to run, shown to the person for approval before every run. */
+      argv: z.array(z.string().min(1)).min(1).max(64),
+      label: z.string().min(1).max(128),
+    })
+    .strict(),
+  "app.env": z.object({}).strict(),
+  "dialog.pickFolder": z.object({ title: z.string().min(1).max(128) }).strict(),
+  "dialog.pickZip": z.object({ title: z.string().min(1).max(128) }).strict(),
 } as const;
 
 export type EngineRequest = { [K in EngineOp]: z.infer<(typeof requestSchemas)[K]> }[EngineOp];

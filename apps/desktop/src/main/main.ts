@@ -1,10 +1,13 @@
-import { app, BrowserWindow, ipcMain, protocol, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from "electron";
+import { execFile } from "node:child_process";
 import path from "node:path";
+import { promisify } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { z } from "zod";
 import { APP_IDENTITY } from "../shared/identity.js";
 import { engineOps, requestSchemas } from "../shared/ipc.js";
 import { EngineClient } from "./engine-client.js";
+import { SecretStore } from "./secrets.js";
 
 /**
  * Main process (ADR 001 §5): orchestration only; no untrusted work here.
@@ -27,6 +30,7 @@ if (!app.requestSingleInstanceLock()) {
 
 let mainWindow: BrowserWindow | undefined;
 const engine = new EngineClient(path.join(app.getPath("userData"), "data"), app.getVersion());
+const secrets = new SecretStore(path.join(app.getPath("userData"), "data", "secrets.bin"));
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -94,13 +98,122 @@ function registerIpc(): void {
     if (typeof op !== "string" || !(engineOps as readonly string[]).includes(op)) {
       throw new Error(`rejected: unknown op ${String(op)}`);
     }
-    const schema = requestSchemas[op as keyof typeof requestSchemas];
-    const parsed = schema.safeParse(payload);
+    const key = op as keyof typeof requestSchemas;
+    const parsed = requestSchemas[key].safeParse(payload);
     if (!parsed.success) {
       throw new Error(`rejected: invalid payload for ${op}: ${z.prettifyError(parsed.error)}`);
     }
-    return engine.invoke(op as keyof typeof requestSchemas, parsed.data);
+    // Secret values NEVER come from the renderer. For plan.mcp the main process
+    // looks up placeholder values in the protected store itself.
+    if (key === "plan.mcp") {
+      const data = parsed.data as unknown as {
+        scope: string;
+        item: { env?: Record<string, { placeholder?: string }>; headers?: Record<string, { placeholder?: string }> };
+        secretValues?: Record<string, string>;
+      };
+      delete data.secretValues;
+      if (data.scope === "user") {
+        const secretValues = await collectSecretValuesFor(data.item);
+        if (Object.keys(secretValues).length > 0) data.secretValues = secretValues;
+      }
+      return engine.invoke(key, parsed.data);
+    }
+    if (key === "secrets.status") {
+      return { encryptionAvailable: secrets.isEncryptionAvailable() };
+    }
+    if (key === "secrets.set") {
+      const { name, value } = parsed.data as { name: string; value: string };
+      return secrets.set(name, value); // { persisted } — false ⇒ memory-only, UI says so
+    }
+    if (key === "secrets.delete") {
+      return { deleted: await secrets.delete((parsed.data as { name: string }).name) };
+    }
+    if (key === "secrets.names") {
+      return { names: await secrets.names() }; // names only — values never leave main
+    }
+    if (key === "mcp.test") {
+      return runMcpTestWithApproval(parsed.data as { argv: string[]; label: string });
+    }
+    if (key === "app.env") {
+      // Facts the renderer needs to frame engine requests — nothing more.
+      return { home: app.getPath("home"), userData: app.getPath("userData"), appVersion: app.getVersion(), productName: APP_IDENTITY.productName };
+    }
+    if (key === "dialog.pickFolder") {
+      const result = await dialog.showOpenDialog(mainWindow as BrowserWindow, {
+        title: (parsed.data as { title: string }).title,
+        properties: ["openDirectory"],
+      });
+      return { canceled: result.canceled, path: result.filePaths[0] };
+    }
+    if (key === "dialog.pickZip") {
+      const result = await dialog.showOpenDialog(mainWindow as BrowserWindow, {
+        title: (parsed.data as { title: string }).title,
+        properties: ["openFile"],
+        filters: [{ name: "Zip archive", extensions: ["zip"] }],
+      });
+      if (result.canceled || result.filePaths[0] === undefined) return { canceled: true, fileBase64: "" };
+      const bytes = await import("node:fs/promises").then((fs) => fs.readFile(result.filePaths[0] as string));
+      return { canceled: false, fileBase64: bytes.toString("base64") };
+    }
+    return engine.invoke(key, parsed.data);
   });
+}
+
+/** Collects stored values for every placeholder the MCP item references. */
+async function collectSecretValuesFor(item: { env?: Record<string, { placeholder?: string }>; headers?: Record<string, { placeholder?: string }> }): Promise<Record<string, string>> {
+  const placeholders = new Set<string>();
+  for (const map of [item.env, item.headers]) {
+    if (map === undefined) continue;
+    for (const value of Object.values(map)) {
+      if (typeof value?.placeholder === "string") placeholders.add(value.placeholder);
+    }
+  }
+  const out: Record<string, string> = {};
+  for (const placeholder of placeholders) {
+    const value = await secrets.get(placeholder);
+    if (value !== undefined) out[placeholder] = value;
+  }
+  return out;
+}
+
+const execFileAsync = promisify(execFile);
+
+/** PRD L7: the exact command is shown and approved EVERY time. */
+async function runMcpTestWithApproval(request: { argv: string[]; label: string }): Promise<{
+  approved: boolean;
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+}> {
+  if (mainWindow === undefined) throw new Error("no window");
+  const exact = request.argv.map((arg) => JSON.stringify(arg)).join(" ");
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    type: "warning",
+    buttons: ["Run", "Cancel"],
+    defaultId: 1,
+    cancelId: 1,
+    title: "Run MCP connection test?",
+    message: `Run this exact command for "${request.label}"?`,
+    detail: exact,
+    noLink: true,
+  });
+  if (response !== 0) return { approved: false, exitCode: null, stdout: "", stderr: "" };
+  try {
+    const { stdout, stderr } = await execFileAsync(request.argv[0] as string, request.argv.slice(1), {
+      timeout: 15_000,
+      windowsHide: true,
+      maxBuffer: 1024 * 1024,
+    });
+    return { approved: true, exitCode: 0, stdout: stdout.slice(0, 4000), stderr: stderr.slice(0, 4000) };
+  } catch (error) {
+    const err = error as { code?: number | string; stdout?: string; stderr?: string; killed?: boolean };
+    return {
+      approved: true,
+      exitCode: typeof err.code === "number" ? err.code : null,
+      stdout: (err.stdout ?? "").slice(0, 4000),
+      stderr: (err.stderr ?? (err.killed === true ? "timed out after 15s" : String(error))).slice(0, 4000),
+    };
+  }
 }
 
 void app.whenReady().then(() => {

@@ -77,3 +77,166 @@ h1 {
   outline: 2px solid var(--text);
   outline-offset: 2px;
 }
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.tab {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  cursor: pointer;
+}
+
+.tab.active {
+  border-color: var(--text);
+  font-weight: 600;
+}
+
+.entries {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.entry-head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.pill {
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.05rem 0.55rem;
+  color: var(--muted);
+}
+
+.pill.ours {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.pill.warn {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 0.4rem;
+}
+
+.row-gap {
+  display: block;
+  margin: 0.5rem 0;
+}
+
+.mono {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+.plan-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin: 0.4rem 0;
+}
+
+.plan-table th,
+.plan-table td {
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+}
+
+.plan-code {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modal {
+  max-width: 40rem;
+  max-height: 85vh;
+  overflow: auto;
+}
+
+.flags {
+  list-style: none;
+  padding: 0;
+}
+
+.flags .warn {
+  color: var(--error);
+}
+
+button {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+}
+
+button.primary {
+  border-color: var(--text);
+  font-weight: 600;
+}
+
+.link {
+  border: none;
+  background: none;
+  color: var(--muted);
+  text-decoration: underline;
+  padding: 0;
+}
+
+input,
+fieldset {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.35rem 0.5rem;
+  background: var(--panel);
+  color: var(--text);
+}
+
+fieldset legend {
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 0 0.3rem;
+}
+
+label input[type="text"],
+label input:not([type]) {
+  display: block;
+  width: 100%;
+  margin-top: 0.2rem;
+}
