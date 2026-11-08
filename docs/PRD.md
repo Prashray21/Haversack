@@ -1,334 +1,188 @@
-# Project Runtime — Product Requirements Document
+# Haversack — Product Requirements Document
 
-**Version:** 0.2 (supersedes v0.1) · **Status:** Draft, pre-build · **Date:** November 6, 2026
+**Version:** 0.3 (resets v0.2) · **Status:** Draft, pre-build · **Date:** November 8, 2026 · **Name:** Haversack is a working name, pending a trademark check
 
-**Tagline:** Write your project's AI setup once. Sync it to every tool. Enforce it.
+**Pitch:** Install your team's skills and MCP servers once. Everyone gets them with one click.
 
 ## 1. Summary
 
-Project Runtime is a **control plane for AI-assisted software teams**. A team defines its project's context, rules, skills, and tool access once, in a portable `project.yaml`. Project Runtime compiles that definition into the native configuration of every AI tool the team already uses, checks pull requests against the team's rules, keeps project context fresh, and brokers tool access through a permissioned, audited gateway.
+Haversack is a **Windows desktop app for sharing an AI agent setup across a team**. A team keeps a shared library of skills and MCP servers in a workspace. A teammate signs in and clicks Apply, and the app installs the skills and writes the MCP configuration for their agents, after showing exactly what will change. A new teammate gets an invite link and is ready in minutes, without installing or wiring up each tool by hand.
 
-It is deliberately **not** another AI workspace. Developers keep working in their editor or terminal. Project Runtime sits underneath and makes every one of those tools behave consistently.
+Supabase is the team backend. The app also works alone, on one machine, with no account.
 
-### What changed from v0.1
+### What changed from v0.2
 
-| v0.1 | v0.2 | Why |
+| v0.2 | v0.3 | Why |
 | --- | --- | --- |
-| Project-aware chat workspace is the core product | Cut from MVP; the product is a CLI, a GitHub App, and a light dashboard | Developers will not leave their editor for a new chat surface |
-| "Reproducible AI environment" | Reproducible **inputs**, with honest limits on outputs | LLM output is non-deterministic, and the Docker analogy overpromises |
-| Rules are "available" to the AI | Rules are **enforced** on PRs | Available is not the same as followed |
-| Context is versioned | Context is also **kept fresh** from merged work | Stale context is worse than none |
-| Integrations and credentials arrive in Phase 5 | A managed MCP gateway is the main long-term moat, in beta by Phase 2 | It is the one capability a file in git cannot provide |
-| Targets students, startups, agencies, hackathons | Beachhead is **agencies**; startups follow | Agencies feel the pain most and have the budget |
-| MVP: workspace, registry, workflow engine, 4 integrations | MVP: compiler, sync, `check`, GitHub App | Contradicted the v0.1 non-goals |
-| No competitor analysis | Included (Section 3) | The biggest gap in v0.1 |
+| Product was a rules and drift control plane, with a CLI first | Product is a team workspace for skills and MCP servers, with a desktop app first | v0.2 drifted from the original idea. The CLI never delivered install and share. |
+| PR enforcement via a GitHub App was the wedge | Shelved. Revisit only if customers ask for it. | It is not what the product is for. |
+| Rules-as-CI, drift manifest, and a secret gate were the features | They become engine components inside the app | The safe-writing code is reusable. |
+| LLM was a PR-check judge | In-app LLM is not in v1. Provider settings come later. | The agents the team already uses are the LLMs. |
+| MCP gateway was the moat | Later phase, behind a security design review | It holds other people's credentials. |
 
 ## 2. Problem
 
-Teams that build with AI coding tools configure each tool separately and rarely keep the configurations aligned.
+Every person on a team, and every new project, repeats the same setup:
 
-- **Context fragmentation.** Each developer's AI knows a different slice of the project.
-- **Inconsistent output.** Different rules and conventions per person and per tool produce inconsistent code.
-- **Onboarding cost.** Every new teammate re-creates prompts, tool connections, and conventions by hand.
-- **Unenforced rules.** Conventions live in a markdown file the model may half-ignore, and nobody notices until review.
-- **Stale knowledge.** Architecture and decisions drift away from what the AI is told.
-- **Credential sprawl.** Tokens for GitHub, databases, and design tools get pasted into individual configs with no central permissions or audit trail.
+- Find and install the skills.
+- Add and configure each MCP server.
+- Paste API keys into the right config files.
+- Do it again for a new teammate, a new machine, or a different agent.
 
-The problem is sharpest for **agencies and consultancies**: many concurrent client projects, rotating developers, and client-specific rules that must not leak between projects.
+The result is that teammates' agents behave differently, new joiners lose hours, and nobody knows who has what installed.
 
-## 3. Competitive landscape
+## 3. Users
 
-Much of the v0.1 idea can already be approximated for free. The PRD must be honest about that.
+- **Admin (team lead):** curates the shared library and decides what the team's agents get.
+- **Member:** applies the team setup and keeps it up to date.
+- **New joiner:** opens an invite link and gets a working setup quickly.
 
-| Approach | What it gives you | Where it falls short |
+**Beachhead:** small dev teams (2 to 15 people) already using AI coding agents, with agencies and consultancies as the first target. They have many projects and rotating people, so setup cost repeats constantly.
+
+## 4. Competitive landscape
+
+Based on each project's README as of November 2026. Not exhaustive, and subject to change.
+
+| Project | What it does | Team features |
 | --- | --- | --- |
-| Shared instruction files in the repo (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules`, Copilot instructions) | Versioned, free, per-tool context and rules | Each tool has its own format and nothing keeps them in sync. No enforcement, freshness, or permissions. |
-| Tool-native team features (org-level skills, plugins, shared rules in individual vendors) | Convenient inside one vendor's ecosystem | Locked to one vendor, and each vendor has a different model. |
-| Shared MCP config files | Common tool list | Secrets end up on laptops, with no per-role scoping or audit. |
-| Internal wiki or Notion | Human-readable project knowledge | Not machine-actionable and goes stale. |
-| Linters, CI, and code review | Enforce deterministic standards | Do not encode AI-specific context or check LLM-written code against intent. |
+| kaiopiola/Loadout | Cross-platform desktop app that discovers, installs, and manages skills, agents, and MCP servers, with an MCP connection test before saving | None stated |
+| AxeForging/loadout | CLI that keeps agent configs in one git-friendly store and installs them into each agent's home, with a drift matrix and snapshots | Bundle export and import |
+| VirajMishra1/loadout | CLI that manages skills and MCP across many agents from a curated catalog, with handoff between agents | Catalog sharing |
+| cuecards (cue-ai) | Per-directory profile manager that materializes into several tools' native formats | Optional marketplace |
 
-**Our wedge:** work across all vendors, enforce instead of suggest, and own the credential and permission layer.
+**Honest read:** installing skills and MCP servers into agents is already done by others, with more breadth than we will have at first. The gap is a **live team workspace**: roles, invites, a shared library that stays in sync, and one-click apply for a new teammate. That gap is real but thin. It must be validated with real teams before large investment (Section 14).
 
-**Platform risk:** individual vendors will keep improving native team features. Our defense is neutrality (one definition across tools), enforcement, and the gateway. A vendor will not enforce another vendor's rules or broker access across competitors.
+## 5. Core concepts
 
-## 4. Vision and positioning
+- **Workspace:** a team. Has members with roles.
+- **Library:** the workspace's shared skills and MCP server definitions.
+- **Bundle:** a named selection from the library (for example "Frontend team").
+- **Project:** a repository linked to a bundle.
+- **Target:** an agent the app can configure (first one chosen in Section 6).
+- **Apply:** the operation that installs a bundle into a person's targets. Always previewed, always undoable.
+- **Local profile:** per-person secrets and settings, stored only on that machine.
 
-> **Every AI tool on the team behaves like it belongs to the same project.**
+## 6. Scope
 
-Positioning line: *"It works with my AI" becomes "it works with our AI."*
+### v1 (MVP)
 
-### Principles
+**Local mode (no account needed):**
 
-1. **Meet developers where they are.** No new editor, no new chat window.
-2. **Source of truth in the repo.** `project.yaml` and its files live in git. The dashboard is a view, not the store.
-3. **Enforce, don't suggest.** Anything we can check automatically, we check.
-4. **Be honest about determinism.** We guarantee consistent inputs, not identical outputs.
-5. **Least privilege by default.** Credentials never touch prompts or config files.
-6. **Vendor-neutral.** Adding a new AI tool is an adapter, not a rewrite.
+- L1. Inventory: show the skills and MCP servers already configured for the supported target.
+- L2. Add a skill from a folder, a zip file, or a git URL.
+- L3. Add an MCP server definition (command, arguments, environment variables as placeholders).
+- L4. Preview a diff of every change before it is written. Apply, with a snapshot so it can be undone.
+- L5. Uninstall only what Haversack installed.
+- L6. Secrets: definitions hold placeholders. The person enters real values once, stored with Windows-protected storage and never written to shared data.
+- L7. Optional MCP connection test, with the exact command shown and approved first.
 
-## 5. Target users
+**Team mode (Supabase):**
 
-**Beachhead: software agencies and consultancies** with five or more concurrent client projects and regular developer rotation.
+- T1. Sign in (email and password).
+- T2. Workspaces with roles: owner, admin, member, viewer.
+- T3. A shared library, synced to every member's app.
+- T4. Bundles.
+- T5. Invite links: expiring, role-limited, sign-in required, revocable, never containing credentials.
+- T6. One-click Apply of a bundle on any member's machine.
+- T7. Status: who is up to date, who is behind, which items changed.
+- T8. Audit log of who published or changed what.
 
-- Buyer: agency owner or engineering lead
-- Pain: re-setting-up each project and each new developer; inconsistent quality across clients; client-data separation
-- Value: onboarding in minutes, rules enforced across every project, clean per-client isolation
+### Later
 
-**Second wave:** startups with five or more developers using AI tools heavily. **Later:** mid-size and enterprise teams that need the gateway, audit logs, and SSO.
+- Project binding: link a repo to a bundle so the app suggests applying it when the repo is opened.
+- More targets (see below), added only after verifying each agent's real formats.
+- LLM provider settings: API key, an OpenAI-compatible endpoint (which covers most local LLM tools), or a connected provider if its docs allow third-party use. Used only by optional features such as drafting a skill. Not in v1.
+- Managed credential gateway, only after a security design review.
+- macOS and Linux, auto-update, code signing.
 
-**Deprioritized:** student and hackathon teams. They have low willingness to pay and different needs.
+### Targets
 
-## 6. Core concepts
+The first target is **Claude Code**, with its skill and MCP formats verified from official documentation before any code is written. The second target is chosen by the product owner after the first works. Every target is added only from verified, cited formats. If an agent offers an official command for adding MCP servers, prefer it over editing its files directly.
 
-- **Project definition:** `project.yaml` plus the context and rules files it references, stored in the repo.
-- **Target:** a supported AI tool (for example Claude Code, Cursor, Copilot). Each has an adapter that compiles the definition into its native format.
-- **Check:** a rule that can be evaluated against a PR. Either deterministic (static) or LLM-judged.
-- **Gateway:** a managed MCP proxy that holds credentials and applies per-role permissions and audit logging.
-- **Workspace:** the organization (an agency) containing many projects.
+### Non-goals for v1
 
-### Example `project.yaml`
+Chat workspace or in-app agent, public marketplace, credential vault or gateway, PR enforcement, GitHub App, in-app LLM, macOS or Linux builds, auto-update.
 
-```yaml
-runtime: 1
-project: acme-storefront
+## 7. Security and threat model
 
-context:
-  - context/product.md
-  - context/architecture.md
-  - context/decisions.md
+The central risk is simple: **a shared MCP server definition runs a command on every teammate's machine, and a shared skill steers every teammate's agent.** A compromised or malicious library item is remote code execution or prompt injection at team scale. The design assumes this threat first.
 
-rules:
-  - rules/coding.md
-  - rules/security.md
+| Threat | Mitigation |
+| --- | --- |
+| A malicious or compromised MCP definition runs arbitrary commands on teammates' machines | Only admins and owners can publish. Every new or changed command is shown in full and must be approved on each machine before it is written. Changed commands never auto-apply. Items can pin versions and content hashes. |
+| Malicious skill content (prompt injection, hidden instructions, exfiltration text) | Content scanning on add and on every change. The diff is shown before apply. Skills are plain files, never executed by the app. |
+| Unsafe archives and paths (zip-slip, symlinks, absolute paths) | Reuse the existing path-escape protections. Extract only to a controlled folder. Reject symlinks and traversal. Tests with hostile archives. |
+| Secrets uploaded to the team backend | Definitions store placeholders only. The secret scan runs on every payload before upload. The backend has no column for credentials. |
+| Cross-workspace data access | Row-level security on every table, default deny, tested with two real users. |
+| Service-role key in the app | The key is never present. The app uses only the public anon key and the user's own session. |
+| Session token theft | Sessions are stored with Windows-protected storage and fail closed. Sign out wipes them. The limits of that protection are documented. |
+| Hostile Supabase URL during sign-in | HTTPS required, the host is displayed prominently, and the person confirms before signing in. |
+| Invite link abuse | Single-purpose, expiring, role-limited, revocable. A link grants only a workspace role, never credentials. |
+| Supply chain via git or URL skill sources | Pinned commits and hashes. Visible source on every item. The first fetch is confirmed. |
+| Electron-specific risks | Follow ADR 001 rev 2: sandboxed renderer, strict CSP, validated IPC, fuses, and all network calls in the main process. |
 
-targets: [claude-code, cursor, copilot]
+## 8. Architecture
 
-integrations:
-  github:   { scopes: [read, branch-write] }
-  supabase: { scopes: [read] }
+- **Desktop shell:** Electron, Windows x64, per ADR 001 rev 2. Core logic runs in a utility process with timeouts, not in the main process.
+- **Engine (reused from the existing CLI):** atomic writes, snapshots and undo, path-escape protection, the secret gate, and the content-hash drift model. It is extended with a library-item model, an install planner that produces a preview, and an applied-items record so uninstall removes only what was installed.
+- **Backend:** Supabase Postgres and Auth, with row-level security. Each team uses its own Supabase project and applies a supplied SQL bundle once. Teammates enter only the project URL and the public anon key.
+- **Data stored:** workspaces, members and roles, library items (definitions with placeholders), bundles, projects, invites, apply-status records, an append-only audit log. **Never stored:** credentials, secret values, or personal environment values.
 
-checks:
-  - id: no-service-role-in-client
-    type: static
-    severity: block
-  - id: rls-required-on-new-tables
-    type: llm
-    severity: warn
+## 9. Metrics
 
-model_policy:
-  pin: true   # record the model versions used for checks
-```
+| Metric | Target |
+| --- | --- |
+| Time for a new teammate from invite to a working setup | Under 5 minutes |
+| Apply success rate | Over 95 percent |
+| Share of members up to date after a library change | Over 80 percent within a day |
+| Weekly active teams | Tracked from the first design partner |
+| Items per workspace | Tracked as an engagement signal |
 
-## 7. Features and requirements
+## 10. Roadmap
 
-Priority: **P0** = MVP, **P1** = next, **P2** = later.
+Estimates are for one developer, with low to medium confidence. The main things that would push them higher are agent format changes, Windows installer problems, and the Supabase tests.
 
-### F1. Compiler and sync (P0)
-
-Compiles the project definition into each target's native configuration and keeps it in sync.
-
-- F1.1 Adapters for at least three targets at launch.
-- F1.2 `runtime sync` regenerates target files from the definition and shows a diff before writing.
-- F1.3 Generated files are marked as generated. Hand edits are detected and reported as drift.
-- F1.4 Rule priority is respected: project rules override conflicting lower-level instructions, and conflicts are flagged at compile time.
-- F1.5 Adapters are versioned and isolated so a new target can be added without touching the core.
-
-### F2. Rules as CI (P0)
-
-A GitHub App evaluates every PR against the project's checks.
-
-- F2.1 **Static checks:** pattern, file-path, and AST-based rules (for example no service-role key in client code, no `console.log` in production code).
-- F2.2 **LLM-judged checks:** natural-language rules evaluated against the diff (for example every new table has row-level security).
-- F2.3 Severity levels: `block`, `warn`, `info`. Only `block` fails the check run.
-- F2.4 Each finding links to the rule, the file and line, and a suggested fix.
-- F2.5 A developer can dismiss a finding with a reason. Dismissals are logged, and repeated dismissals of one rule are surfaced as a signal to revise it.
-- F2.6 Cost controls: static checks run first, and LLM checks run only on changed files and respect a per-project budget.
-- F2.7 `runtime check` runs the same checks locally before pushing.
-
-### F3. Living context (P1)
-
-Keeps context accurate as the project changes.
-
-- F3.1 On merge, propose updates to `decisions.md` and `architecture.md` as a draft PR. A human approves.
-- F3.2 Flag context files that reference code paths or components that no longer exist.
-- F3.3 Track context changes with history and authorship.
-
-### F4. Managed MCP gateway (P1, beta in Phase 2)
-
-The capability a repo file cannot provide.
-
-- F4.1 Connect integrations once at the project or workspace level through OAuth where possible.
-- F4.2 Credentials are stored encrypted. They never appear in prompts or config files.
-- F4.3 Per-role and per-tool permissions (for example a reviewer can only read).
-- F4.4 Every tool call is logged with who, which tool, and what scope.
-- F4.5 Integrations are revocable in one click, and secrets can be rotated.
-- F4.6 Strict per-project and per-workspace isolation.
-
-### F5. Onboarding (P0)
-
-- F5.1 `runtime init` scans an existing repo and generates a draft `project.yaml`, context, and rules for the team to review. init must also ingest existing `CLAUDE.md`, `AGENTS.md`, and `.cursor/rules` into `context/` and `rules/` rather than leaving them to conflict with generated files. **Required before MVP exit** — sequenced after the core CLI steps, before any design-partner trial (real repos already have these files).
-- F5.2 `runtime join` sets up a new teammate: sync targets, connect the gateway, load context.
-- F5.3 Target time from `join` to a working setup: under 10 minutes.
-
-### F6. Dashboard (P0, minimal)
-
-- F6.1 Members and roles.
-- F6.2 Integrations and their status.
-- F6.3 Check results across projects and an audit log.
-- F6.4 Drift report: which developers' tool configs differ from the definition.
-
-### F7. Skills (P1)
-
-Reusable instruction bundles attached to a project and compiled to targets that support skills. A private, per-workspace registry first. A public marketplace is explicitly out of scope until trust and supply-chain controls exist (see Section 10).
-
-## 8. MVP scope (4 to 6 weeks)
-
-**In:** CLI (`init`, `sync`, `check`, `join`), three target adapters, GitHub App running static and LLM checks on PRs, minimal dashboard (members, integrations, check results), `project.yaml` spec v1.
-
-**Out:** chat workspace, workflow engine, agents, skill marketplace, gateway (beta follows MVP), SSO, self-hosting, cloud IDE.
-
-**MVP exit criteria:**
-
-- Three design-partner agencies run it on at least two live projects each.
-- A new developer reaches a working setup in under 10 minutes.
-- Check false-positive rate under 15 percent on blocking rules.
-- `init` ingests existing CLAUDE.md / AGENTS.md / `.cursor/rules` into `context/` and `rules/` (blocking for design-partner trials — see F5.1).
-
-## 9. Architecture
-
-```text
-   Developer machines                GitHub
-   ┌───────────────┐         ┌──────────────────┐
-   │ runtime CLI   │         │ Runtime GitHub   │
-   │ (init/sync/   │         │ App (PR checks)  │
-   │  check/join)  │         └────────┬─────────┘
-   └───────┬───────┘                  │
-           │                          │
-           ▼                          ▼
-   ┌────────────────────────────────────────────┐
-   │              Runtime API                   │
-   ├──────────────┬──────────────┬──────────────┤
-   │ Definition   │ Check engine │ Context      │
-   │ + adapters   │ static + LLM │ freshness    │
-   └──────┬───────┴──────┬───────┴──────┬───────┘
-          │              │              │
-          ▼              ▼              ▼
-     Target files    LLM gateway    Audit + DB
-   (AGENTS.md, etc.) (model-agnostic) (Postgres)
-
-   Phase 2: Managed MCP gateway (credential broker, permissions, audit)
-```
-
-- **CLI** is local-first and works offline for `sync` and static `check`.
-- **Check engine** runs deterministic rules first and calls a model only for LLM-judged rules, with pinned model versions and a per-project budget.
-- **LLM layer** is provider-agnostic, with model versions recorded per check run.
-- **Stack (suggested):** TypeScript and Node for CLI and API, PostgreSQL, a Next.js dashboard, a managed secrets store.
-
-## 10. Security and threat model
-
-| Threat | Why it matters | Mitigation |
+| Phase | What | Estimate |
 | --- | --- | --- |
-| Token theft from our gateway | We would hold access to many customers' GitHub, database, and design accounts | Encrypted secrets, short-lived scoped tokens, per-project isolation, revocation, rotation, audit logs |
-| Prompt injection via context, skills, or PR content | Poisoned content can steer the AI or the LLM-judge | Treat all repo content as untrusted input to the judge, constrain checker output to structured verdicts, no tool access in the checker |
-| Malicious or compromised skills | A shared skill is a supply-chain vector | Private registries first, content review and signing before any public registry |
-| Cross-tenant leakage | An agency's clients must never see each other's data | Hard tenant isolation in storage and queries, no shared prompts or caches across projects |
-| Over-privileged agents | An agent with write access can do real damage | Least-privilege defaults, read-only reviewer role, branch-scoped writes, sandboxing before any autonomous execution |
-| Secrets in the repo | Generated files might capture sensitive values | Secret scanning on `sync` and `check`, and never write credentials into generated files |
+| 0 | Preflight: free disk space on C:, install WSL2 and Docker, set up local Supabase | 1 to 2 days |
+| 1 | Verify target formats from official docs, write the target ADR | 2 to 3 days |
+| 2 | Engine extension: library items, planner, snapshots and undo, hostile-input tests | 1 to 2 weeks |
+| 3 | Desktop app, local mode (L1 to L7), installer, real screenshots | 2 to 3 weeks |
+| 4 | Supabase schema, row-level security, database tests | 1 to 2 weeks |
+| 5 | Team mode (T1 to T8), with two-user end-to-end tests | 3 to 4 weeks |
+| 6 | Project binding, second target, prerelease | 2 to 3 weeks |
+| Later | LLM provider settings, gateway design review, signing | Unscheduled |
 
-## 11. Reproducibility, stated honestly
-
-**We guarantee:** every teammate and tool is configured from the same versioned definition, the same rules are checked on every PR, and every check run records the model version, rule version, and context version it used.
-
-**We do not guarantee:** identical model output for identical input. Models change and sampling varies.
-
-To reduce variance, pin model versions for checks, keep rules specific and testable, and measure outcomes (Section 12) instead of claiming determinism.
-
-## 12. Success metrics
-
-| Metric | Definition | Initial target |
-| --- | --- | --- |
-| Time to first merged PR | New developer join to first merged PR | Under 1 day |
-| Setup time | `join` to a working, synced setup | Under 10 minutes |
-| Rule catch rate | Violations caught per 100 PRs | Tracked, with a baseline per project |
-| First-pass check rate | PRs passing checks on first push | Rising over 60 days |
-| Check precision | Share of findings not dismissed as wrong | Over 85 percent on blocking rules |
-| Tools in sync | Targets kept in sync per project | Three or more |
-| Drift | Share of developers with out-of-sync configs | Under 10 percent |
-| Retention | Projects with a check run in the last 30 days | Over 70 percent |
-
-## 13. Business model (hypotheses to validate)
-
-- **Free:** one project, static checks, a small LLM-check allowance.
-- **Team:** priced per active project for agencies, with an LLM-check allowance, dashboard, and drift reports.
-- **Business:** the managed gateway, audit export, and priority support.
-- **Enterprise (later):** SSO, advanced roles, compliance reporting, self-hosting.
-
-The pricing unit (per project, per seat, or per check) is an open question for design-partner interviews.
-
-## 14. Roadmap
-
-| Phase | Focus | Contents |
-| --- | --- | --- |
-| 1: Foundation | Prove the wedge | CLI, three adapters, GitHub App checks, minimal dashboard |
-| 2: Gateway | Build the moat | Managed MCP gateway beta, per-role permissions, audit log, living context |
-| 3: Scale | Broaden | More targets, private skill registry, drift reporting, templates |
-| 4: Enterprise | Move up-market | SSO, advanced permissions, compliance, self-hosting |
-| Later | Revisit only with evidence | Workflow engine, agents, marketplace |
-
-## 15. Risks
+## 11. Risks
 
 | Risk | Likelihood | Mitigation |
 | --- | --- | --- |
-| Vendors ship native team configuration that is good enough | High | Stay vendor-neutral, lead with enforcement and the gateway |
-| LLM-judged checks are noisy and teams turn them off | High | Static checks first, dismissal feedback loop, precision target, per-rule tuning |
-| Rule authoring is too hard, so teams write weak rules | Medium | Starter rule packs, `init` that proposes rules from the codebase |
-| Adapter maintenance as tools change formats | Medium | Isolated adapters, contract tests, a small supported-target list |
-| Trust barrier to granting repo and credential access | Medium | Minimal scopes, open-source CLI, clear security documentation |
-| Agencies are a small market | Medium | Treat as a beachhead, with startups and enterprise to follow |
+| Competitors add team features | Medium | Ship team mode early. Validate with real teams first. |
+| Agent config formats change | High | Verify from official docs, isolate each target behind an adapter, add contract tests, keep the target list small. |
+| A shared definition is used to attack teammates | Medium | Section 7: publish roles, per-machine approval, hashes, scanning. |
+| People still must enter their own credentials | Certain in v1 | State it plainly. A managed gateway is a later, reviewed phase. |
+| Unsigned installer shows SmartScreen warnings | Certain | Document it. Decide on signing later. |
+| Thin differentiation against existing tools | Medium | Validate the team workspace gap in Section 12 before building Phase 4 and 5. |
+| Local disk space on the development PC | Present | Fix before Phase 0 completes. Keep caches and builds on D:. |
 
-## 16. Open questions
+## 12. Validation plan
 
-1. Who pays: the agency owner, the engineering lead, or per-client reimbursement?
-2. Pricing unit: per project, per seat, or per check?
-3. Which three targets ship first, based on design-partner usage?
-4. How much of rule authoring can `init` automate reliably?
-5. ~~Should the CLI be open source to reduce the trust barrier, with the hosted checks and gateway as the paid layer?~~ **Answered (D12):** the CLI and core are MIT; the hosted GitHub App and gateway live in a separate, non-MIT codebase and carry the commercial layer.
-6. What is the minimum viable gateway, and is it better as a standalone product?
-7. Managed-region / local-notes — raised 2026-11-06 during MVP planning; explicitly out of scope for now (do not build without validation).
+1. After Phase 3, show local mode to 3 to 5 real teams and watch them add a skill and an MCP server.
+2. Ask directly: would your team use a shared workspace, and who would pay?
+3. Do not start Phases 4 and 5 until at least two teams say yes and describe the team workflow in their own words.
+4. After Phase 5, run a real two-person test: one publishes, one applies, with timing.
 
-## 17. Non-goals
+## 13. Open questions
 
-- A chat workspace or any new editor
-- A cloud IDE or an in-house LLM
-- A workflow engine or autonomous agent swarm (Phase 4+ only with evidence)
-- A public skill or agent marketplace before supply-chain controls exist
-- Replacing CI/CD, issue trackers, or code review tools
-- Enterprise IAM in the MVP
+1. Which agent is the second target, after Claude Code?
+2. Free for small teams, with pricing for larger ones, or paid from the start?
+3. Does the existing CLI stay as a separate developer tool, or become only the engine inside the app?
+4. Final name, after the trademark check.
+5. Open source, and under which license, for the engine and the app?
+6. When the in-app LLM arrives, which providers come first?
 
-## 18. Validation plan
+## 14. What carries over from v0.2
 
-1. Interview 15 agencies and consultancies about onboarding cost, rule enforcement, and who owns the decision.
-2. Recruit three design partners and ship the MVP to them within six weeks.
-3. Measure setup time, check precision, and dismissal rate on real PRs.
-4. Decide at week 8: continue, change target segment, or narrow to a single feature (likely Rules as CI or the gateway).
+**Reused:** schema validation approach, atomic writes, path-escape protection, the secret gate, content hashing, the test and CI setup, the Electron ADR, the MIT license decision.
 
-## 19. Implementation decision log (2026-11-06)
-
-Decisions made while building the MVP that refine this PRD. Where this log is more specific than earlier sections, the build follows this log.
-
-| # | Decision |
-| --- | --- |
-| D1 | Checks are defined inline in `project.yaml` (`id`, `type`, `severity` plus the body: `pattern`/`path`/`exclude` for static, `prompt`/`paths` for LLM), scoped by path globs. The GitHub App evaluates PRs against the **base branch's** `project.yaml`, so a PR cannot weaken its own checks. |
-| D2 | Static checks match **added diff lines** by default, not whole files. |
-| D3 | `severity` defaults to `warn`. |
-| D4 | `model_policy.budget` exists. Unit: USD (2 decimals), computed from token usage × the per-model price recorded at run time. `usd_per_run` caps one check run; `usd_per_month` is per project per calendar month (UTC). Budget exhaustion yields a `skipped`/neutral check result — never a silent pass. |
-| D5 | Generated files carry a `GENERATED BY RUNTIME — DO NOT EDIT` header (placement per adapter; after the `.mdc` frontmatter for Cursor). Output is LF-only, and all hashing uses BOM-stripped, LF-normalized content. Drift detection uses a committed `.runtime/manifest.json` (recursively sorted keys, stable formatting, trailing newline) with states: `unchanged`, `stale`, `hand-edited`, `untracked`, `new`. |
-| D6 | CLI exit codes: `0` success, `1` changes or drift detected (`sync --verify`), `2` configuration error (including an unknown `runtime:` spec version), `3` secret detected. `sync --verify` replaces `sync --check` to avoid colliding with `runtime check`. |
-| D7 | The `integrations` block is validated but inert in the MVP (gateway is Phase 2); loading a config with integrations emits a parse-time warning. |
-| D8 | Secret scanning runs on `sync` and `check`. Findings are always redacted (the secret value is never printed). A per-line marker `runtime:allow-secret` skips a line; a project-level `secrets.ignore` list (regex + optional reason) provides repo-wide allowlisting. |
-| D9 | MVP targets: `claude-code`, `cursor`, `copilot` (resolves open question 3 for the MVP). |
-| D10 | Generated output larger than ~20 KB warns at sync time; an import mode (split + referenced files) is planned for v1.1. |
-| D11 | `runtime init` must ingest existing `CLAUDE.md` / `AGENTS.md` / `.cursor/rules` (see F5.1). **Required before MVP exit** — not deferred to v1.1. |
-| D12 | License: `packages/cli` and `packages/core` are MIT (LICENSE added 2026-11-06). The hosted GitHub App and the managed gateway are separate, non-MIT codebases and carry the commercial layer. The repository stays private during the MVP; `LICENSE` ships so a public repo can go live without re-licensing. |
-| D13 | Check engine (local CLI): `runtime check` scans git-tracked files (whole-file mode by default) or only the added lines of a diff with `--base <ref>` (D2 semantics). LLM-judged checks report `skipped` until the judge runs — never a pass. Exit codes per D6: `0` clean, `1` a block-severity check failed, `3` secret findings (redacted). The GitHub App evaluates PRs against the base branch's `project.yaml` (D1). |
+**Shelved:** the GitHub App, PR enforcement, rules-as-CI as a product feature, the check engine as a headline, the share-by-link gateway vision until the gateway design review.
