@@ -202,12 +202,15 @@ function comparePaths(a: string | undefined, b: string | undefined): number {
   return (a ?? "") < (b ?? "") ? -1 : (a ?? "") > (b ?? "") ? 1 : 0;
 }
 
-function skillContentHash(name: string, description: string | null, files: SkillFile[]): string {
+/** sha256 over the canonical FILES ONLY — the hash pins what apply writes.
+ *  `name` is deliberately excluded: the same content under two names is the
+ *  same content (installed to two destinations); the plan previews the name.
+ *  (MCP content hashes DO include the server name — there the name is the
+ *  config entry key, i.e. part of the written artifact.) */
+function skillContentHash(files: SkillFile[]): string {
   return sha256Hex(
     stableStringify({
       kind: "skill",
-      name,
-      description,
       files: files.map((f) => [f.path, f.sha256]).sort((a, b) => comparePaths(a[0], b[0])),
     }),
   );
@@ -280,7 +283,7 @@ export function buildSkillItem(input: BuildSkillItemInput): SkillItem {
     name,
     ...(description === undefined ? {} : { description }),
     files,
-    contentHash: skillContentHash(name, description ?? null, files),
+    contentHash: skillContentHash(files),
     ...(input.source === undefined ? {} : { source: input.source }),
   };
 }
