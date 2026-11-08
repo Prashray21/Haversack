@@ -1,0 +1,32 @@
+# Electron-builder config (ADR 001 §10): NSIS assisted installer, per-user.
+# Identity from src/shared/identity.ts — keep in sync with APP_IDENTITY.
+appId: io.github.prashray21.haversack
+productName: Haversack
+copyright: Copyright © 2026 Prashray Sharma
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - package.json
+
+# Everything ships inside the asar; onlyLoadAppFromAsar fuse is flipped at package time.
+asar: true
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  # Unsigned in Phase A (owner decision #2) — SmartScreen warning documented.
+  signingHashAlgorithms: null
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  artifactName: Haversack-Setup-${version}.${ext}
+  deleteAppDataOnUninstall: true
+  allowElevation: false

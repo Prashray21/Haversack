@@ -3,5 +3,12 @@ packages:
   - apps/*
 
 # pnpm blocks dependency build scripts by default; allow the ones we need.
+# electron + electron-builder: approved with exact pins in ADR 001 §13 (owner review #1).
+# electron-winstaller: transitive of owner-pinned electron-builder (Squirrel target we
+# never build); its install script is a LOCAL 7z-arch selector (verified from the npm
+# registry scripts field — no network fetch). Flagged to the owner at the P3 checkpoint.
 allowBuilds:
   esbuild: true
+  electron: true
+  electron-builder: true
+  electron-winstaller: true
