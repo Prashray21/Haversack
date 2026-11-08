@@ -51,7 +51,13 @@ export function App() {
   const [pendingPlan, setPendingPlan] = useState<PlanStep[] | undefined>(undefined);
 
   useEffect(() => {
-    invoke("app.env", {})
+    // Guard (BUG-010 class): if the preload bridge is missing, say so plainly
+    // instead of a silent blank page.
+    if (window.haversack === undefined) {
+      setError('Internal error: the secure bridge did not load — the app cannot talk to its engine. Reinstall the app; if it persists, file a bug.');
+      return;
+    }
+    invoke('app.env', {})
       .then((result) => setEnv(result as EnvInfo))
       .catch((err: Error) => setError(err.message));
   }, [invoke]);

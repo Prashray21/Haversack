@@ -24,6 +24,10 @@ const CSP =
 
 protocol.registerSchemesAsPrivileged([{ scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: false } }]);
 
+// ADR 001 §11: the userData folder derives from the ONE identity constant,
+// not from the package name. Must be set before app ready.
+app.setPath("userData", path.join(app.getPath("appData"), APP_IDENTITY.userDataDirName));
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 }
@@ -45,15 +49,20 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, "preload.cjs"), // sandboxed preload must be CJS (BUG-010)
       // Local content only; navigation lockdown below.
       webSecurity: true,
     },
   });
-  // Navigation lockdown (ADR 001 §5 item 4): nothing external may take over the window.
-  mainWindow.webContents.on("will-navigate", (event, url) => {
-    if (!url.startsWith("app://")) event.preventDefault();
-  });
+      // Navigation lockdown (ADR 001 §5 item 4): nothing external may take over the window.
+      mainWindow.webContents.on("will-navigate", (event, url) => {
+        if (!url.startsWith("app://")) event.preventDefault();
+      });
+      if (process.env.HAVERSACK_SMOKE === "1") {
+        mainWindow.webContents.on("console-message", (_event, _level, message) => {
+          console.log(`RENDERER_CONSOLE ${message.slice(0, 300)}`);
+        });
+      }
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   if (app.isPackaged) {
     // No DevTools in packaged builds (ADR 001 §7 item 5).
@@ -65,8 +74,10 @@ function createWindow(): void {
 function registerAppProtocol(): void {
   protocol.handle("app", (request) => {
     const url = new URL(request.url);
-    // Only files under the bundled renderer directory are served.
-    const rel = path.normalize(decodeURIComponent(url.hostname + url.pathname).replace(/^\/+/, ""));
+    // The hostname ("renderer") is the virtual host marker; the FILE PATH is
+    // the pathname alone. Treating the hostname as a path segment was BUG-009
+    // (renderer 404 "not found").
+    const rel = path.normalize(decodeURIComponent(url.pathname).replace(/^\/+/, ""));
     const root = path.join(__dirname, "..", "renderer");
     const abs = path.resolve(root, rel);
     if (!abs.startsWith(root + path.sep) && abs !== root) {
@@ -82,8 +93,10 @@ async function net_fetch(absPath: string): Promise<Response> {
     const response = await net.fetch(pathToFileURL(absPath).toString());
     const headers = new Headers(response.headers);
     headers.set("Content-Security-Policy", CSP);
+    if (process.env.HAVERSACK_SMOKE === "1") console.log(`PROTOCOL_DEBUG ${response.status} ${absPath}`);
     return new Response(response.body, { status: response.status, headers });
-  } catch {
+  } catch (error) {
+    if (process.env.HAVERSACK_SMOKE === "1") console.log(`PROTOCOL_DEBUG throw ${absPath}: ${error instanceof Error ? error.message : String(error)}`);
     return new Response("not found", { status: 404 });
   }
 }
@@ -229,8 +242,34 @@ void app.whenReady().then(() => {
     mainWindow?.webContents.once("did-finish-load", () => {
       engine
         .invoke("engine.ping", {})
-        .then((result) => {
-          console.log(`SMOKE_OK ${JSON.stringify(result)}`);
+        .then(async () => {
+          // Render check (BUG-009 guard): the pipeline can be green while the
+          // renderer 404s — verify the app actually mounted.
+          const window_ = mainWindow;
+          if (window_ === undefined) throw new Error("window gone");
+          const renderedJson = await window_.webContents.executeJavaScript(
+            "JSON.stringify({ rootChildren: document.getElementById('root') !== null ? document.getElementById('root').children.length : -1, bodyHead: document.body.innerHTML.slice(0, 160) })",
+          );
+          const rendered = JSON.parse(renderedJson) as { rootChildren: number };
+          if (process.env.HAVERSACK_SMOKE === "1") console.log(`RENDERER_DEBUG ${String(renderedJson).slice(0, 300)}`);
+          if (rendered.rootChildren <= 0) {
+            console.error("SMOKE_FAIL renderer did not mount (protocol/path bug)");
+            app.exit(1);
+            return;
+          }
+          const secretValue = process.env.HAVERSACK_SMOKE_SECRET;
+          if (secretValue === undefined) {
+            console.log(`SMOKE_OK ${JSON.stringify({ product: APP_IDENTITY.productName, appVersion: app.getVersion(), engine: "utility-process", rendered: true })}`);
+            app.quit();
+            return;
+          }
+          // Exercise the REAL protected-store path: store, read back, report
+          // match without printing the value. HAVERSACK_SMOKE_KEEP=1 leaves the
+          // entry in the store (uninstall-wipe evidence needs a secret present).
+          const setResult = await secrets.set("SMOKE_TEST_SECRET", secretValue);
+          const readBack = await secrets.get("SMOKE_TEST_SECRET");
+          console.log(`SMOKE_SECRET persisted=${String(setResult.persisted)} roundTrip=${String(readBack === secretValue)}`);
+          if (process.env.HAVERSACK_SMOKE_KEEP !== "1") await secrets.delete("SMOKE_TEST_SECRET");
           app.quit();
         })
         .catch((error: Error) => {

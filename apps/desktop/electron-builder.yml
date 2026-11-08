@@ -20,8 +20,8 @@ win:
     - target: nsis
       arch:
         - x64
-  # Unsigned in Phase A (owner decision #2) — SmartScreen warning documented.
-  signingHashAlgorithms: null
+  # Unsigned in Phase A (owner decision #2) — no certificate configured, so
+  # electron-builder skips signing; SmartScreen warning documented in P3.4.
 
 nsis:
   oneClick: false
