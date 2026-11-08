@@ -8,7 +8,7 @@
 - Standing rules added (`105ee42`). Progress ledger created: `docs/PROGRESS.md`.
 - Dogfood consistency after archiving `context/decisions.md`: removed its `project.yaml` context reference and regenerated (`sync` wrote `CLAUDE.md`, `.cursor/rules/haversack.mdc`, `.github/copilot-instructions.md`, updated `.haversack/manifest.json`); `sync --verify` exit 0; `check` exit 0 (3 checks, no blocking failures).
 - Verification at P0: `pnpm typecheck` exit 0; `pnpm test` core **141 passed** (15 files) + cli **58 passed | 1 skipped** (live-judge test needs OPENAI_API_KEY), overall exit 0.
-- CI on main NOT verifiable this session: gh not authenticated (exit 4 on `gh run list`).
+- CI on main verified green after the P0 push: run `42455188562` (commit `daa476c`) completed success, 1m16s — read-only `gh run list` with the user-approved per-call GCM token (interactive gh remains unauthenticated, exit 4).
 
 Method: every claim cites a file path plus a passing test name or pasted command output; "Not started" means no code exists. PRD v0.2 (`docs/PRD.md`, last commit `c942e5e`) is the requirement source. Test evidence: `pnpm test` 2026-11-07 (R0 recount) — core **128 passed** (14 files), cli **52 passed** (5 files) — **180 passed + 1 skipped** live-judge test.
 

@@ -22,7 +22,7 @@ Status values: Done / In progress / Blocked / Not started. Every "Done" claim ci
 - node `v24.14.1` · pnpm `12.16.1`
 - Docker: CLI `29.9.2` present; engine NOT running (`docker info` → `failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine`). WSL2: NOT installed (`wsl --status` → "The Windows Subsystem for Linux is not installed"). Not needed until P4.
 - Disk at P0 start: C: 6.0 GB free · D: 127.6 GB free. TEMP/caches/clones/build output stay on D:.
-- CI on main: NOT VERIFIABLE this session — gh CLI not authenticated (`gh run list` → "gh auth login" prompt, exit 4). Local verification stands in: typecheck + tests below.
+- CI on main: **verified green** via read-only `gh run list` (user-approved per-call GCM-token workaround; token never printed/stored): rename commit `19e85c4` → run 42368654884 success; P0 push `daa476c` → run 42455188562 completed success (1m16s). Interactive gh remains unauthenticated (`gh run list` without the workaround → "gh auth login", exit 4).
 - Rename decision (owner, 2026-11-08): commit `19e85c4` KEPT. Code stays `haversack` (binary, packages `@haversackhq/*`, `.haversack/` manifest dir, spec key). "Haversack" is a working name in prose only. No further renaming. ADR 002 archived to `docs/archive/002-rename.md`.
 
 ## Local verification at P0 (2026-11-08)
