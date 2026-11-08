@@ -1,5 +1,21 @@
 # MVP Audit — 2026-11-07
 
+## 2026-11-08 — P2 engine extension complete (gate posted)
+
+- P1: ADR 003 (`docs/adr/003-targets-and-install-mechanics.md`, commit `115db5e`) approved by owner.
+- P2 sub-milestones (tests first, each committed): `3cb7f7b` library-item model (skill/mcp items,
+  placeholder-only env, canonical hashes); `e0a1e9b` skill ingestion folder/zip/pinned-git
+  (security boundary); `72235d2` pure install planner + claude-code adapter; `5ecdfe5`
+  apply/undo/uninstall + applied-items ledger.
+- All 10 adversarial tests required by BUILD_PROGRAM §P2 exist and pass — exact test names mapped
+  in `docs/REVIEW_P2.md` §3 (the phase's security review guide, with residual risks in §4).
+- Verification 2026-11-08: `pnpm -r --stream typecheck` exit 0; `pnpm -r --stream test` core
+  **176 passed** (19 files) + cli **58 passed | 1 skipped**, overall exit 0.
+- Dependency: `fflate ^0.8.3` added to packages/core (owner-approved; `pnpm audit`: "No known
+  vulnerabilities found"). Zip parser choice per owner (battle-tested over hand-rolled).
+- Content-hash semantics: skill hashes pin FILES ONLY (name is the destination, previewed
+  separately); MCP hashes include the server name (the name is the config entry key).
+
 ## 2026-11-08 — P0 plan reset (PRD v0.3 is now the source of truth)
 
 - Product plan reset per `docs/BUILD_PROGRAM.md`: the product is a Windows desktop app + Supabase team workspace (PRD v0.3). Rules-as-CI, GitHub App, PR enforcement, MCP gateway, renames: shelved. Old docs archived, nothing deleted: `docs/archive/PRD-v0.2.md`, `docs/archive/decisions.md` (moved from `context/`), `docs/archive/002-rename.md`.
