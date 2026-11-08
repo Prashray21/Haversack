@@ -3,6 +3,44 @@
 Every entry: what broke, the root cause, the fix, and the regression test that
 guards the class of bug. Newest last.
 
+## BUG-009 — Packaged renderer showed "not found": app:// path double-counted the virtual host (2026-11-08, P3.3)
+
+- **Symptom:** the installed app opened with the correct title bar but the
+  body rendered the protocol handler's 404 body ("not found"). The dev smoke
+  test passed — `did-finish-load` fires for a 404 body, so the pipeline
+  (main → utility process → core) was green while the UI was empty.
+- **Root cause:** `main.ts` loaded `app://renderer/index.html` and the
+  protocol handler concatenated `url.hostname + url.pathname` into the file
+  path, resolving to `dist/renderer/renderer/index.html` — nonexistent → 404.
+  The hostname is the virtual host marker, not a path segment.
+- **Fix:** the handler maps `url.pathname` alone under the renderer root.
+- **Guard:** the smoke hook now fails (`SMOKE_FAIL renderer did not mount`)
+  unless `#root` actually has children in the loaded page — a pipeline-green/
+  renderer-empty run can no longer pass. Found by the owner opening the
+  installed app; regression caught by the strengthened smoke, not by unit
+  tests (protocol handling is Electron-runtime behavior).
+
+## BUG-010 — Sandboxed preload was ESM: `window.haversack` never existed, renderer rendered empty (2026-11-08, P3.3)
+
+- **Symptom:** after the BUG-009 path fix, the smoke gate still failed — all
+  renderer files served 200, no visible errors, but `#root` had no children.
+  With pre-load console capture attached: `Unable to load preload script …
+  SyntaxError: Cannot use import statement outside a module`, then
+  `Cannot read properties of undefined (reading 'invoke')`.
+- **Root cause:** the repo is `"type": "module"`, so tsc emitted the preload
+  as ESM `.js`. Electron **sandboxed** renderers load preload scripts as
+  plain CommonJS — an ESM preload cannot expose the contextBridge, so the
+  bridge (`window.haversack`) never existed and the app crashed on its first
+  invoke.
+- **Fix:** the build emits the preload via esbuild as
+  `dist/main/preload.cjs` (`--format=cjs --external:electron`), and
+  `main.ts` points at the `.cjs`. The renderer also renders a plain-language
+  error instead of a silent blank page if the bridge is missing.
+- **Guard:** the BUG-009 render check (smoke fails unless `#root` has
+  children) is the guard — it caught this bug the same day. Lesson recorded:
+  the smoke gate must capture renderer console messages from window creation,
+  not after load (load-time errors were invisible in the first diagnostic run).
+
 ## BUG-001 — Symlink/junction escape in source-file reads (2026-11-07, M3)
 
 - **Symptom:** `readRepoTextFile` validated the requested path lexically
