@@ -3,17 +3,17 @@
     ".cursor/rules/haversack.mdc": {
       "adapter": "cursor",
       "adapterVersion": 1,
-      "sha256": "1b9e81adae022d939bfffa65bd6a28d6f4d432fe8cf756aed993a520575272a1"
+      "sha256": "7ecca7086a368012fc91448b3928de0bbd776aadd653287661073d7f305d1bd9"
     },
     ".github/copilot-instructions.md": {
       "adapter": "copilot",
       "adapterVersion": 1,
-      "sha256": "153e898def413a8d4131ad86d6b50be5f349d2b03932098f562d1eacb2986d73"
+      "sha256": "1492f7ec4f0cb5f35b05853993a5954640c54ca10aa91d5c6f9b69ec651b127c"
     },
     "CLAUDE.md": {
       "adapter": "claude-code",
       "adapterVersion": 1,
-      "sha256": "aa649f21a3ae4f31d86f43247775e916f400ed4365a678f5c918686fa02fcfdd"
+      "sha256": "c514b61e259c4ff4d4e7cd5a4a4bbdce3f4b149fc1da9ff64f06e379da6e5023"
     }
   },
   "generator": "haversack@0.1.0",

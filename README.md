@@ -4,8 +4,8 @@
 
 ![runtime](docs/assets/badges/version.svg) ![license](docs/assets/badges/license.svg)
 
-> **Status: CLI release — local checks only. PR enforcement via the GitHub App is not built yet.**
-> License: MIT. The repository is private during the MVP; file formats and exit codes may change before v1.
+> **Status (plan reset, PRD v0.3 — "Haversack" is a working name): what exists today is the CLI v0.1.0 engine only. The Windows desktop app, skills and MCP server management, and the team workspace are not built yet.**
+> License: MIT. The repository is private; file formats and exit codes may change.
 
 ## What it is
 

@@ -1,5 +1,15 @@
 # MVP Audit — 2026-11-07
 
+## 2026-11-08 — P0 plan reset (PRD v0.3 is now the source of truth)
+
+- Product plan reset per `docs/BUILD_PROGRAM.md`: the product is a Windows desktop app + Supabase team workspace (PRD v0.3). Rules-as-CI, GitHub App, PR enforcement, MCP gateway, renames: shelved. Old docs archived, nothing deleted: `docs/archive/PRD-v0.2.md`, `docs/archive/decisions.md` (moved from `context/`), `docs/archive/002-rename.md`.
+- The audit sections below remain valid as the evidence record for the **v0.1.0 CLI engine**, which PRD v0.3 §14 explicitly reuses (atomic writes, path-escape protection, secret gate, content hashing, test/CI setup).
+- Rename decision (owner): commit `19e85c4` kept — code stays `haversack`; no further renaming.
+- Standing rules added (`105ee42`). Progress ledger created: `docs/PROGRESS.md`.
+- Dogfood consistency after archiving `context/decisions.md`: removed its `project.yaml` context reference and regenerated (`sync` wrote `CLAUDE.md`, `.cursor/rules/haversack.mdc`, `.github/copilot-instructions.md`, updated `.haversack/manifest.json`); `sync --verify` exit 0; `check` exit 0 (3 checks, no blocking failures).
+- Verification at P0: `pnpm typecheck` exit 0; `pnpm test` core **141 passed** (15 files) + cli **58 passed | 1 skipped** (live-judge test needs OPENAI_API_KEY), overall exit 0.
+- CI on main NOT verifiable this session: gh not authenticated (exit 4 on `gh run list`).
+
 Method: every claim cites a file path plus a passing test name or pasted command output; "Not started" means no code exists. PRD v0.2 (`docs/PRD.md`, last commit `c942e5e`) is the requirement source. Test evidence: `pnpm test` 2026-11-07 (R0 recount) — core **128 passed** (14 files), cli **52 passed** (5 files) — **180 passed + 1 skipped** live-judge test.
 
 ## 1. P0 requirements (PRD §7 + §8)

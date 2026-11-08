@@ -5,7 +5,6 @@ description: Project Runtime dogfooding its own repo — one definition for AI t
 context:
   - context/product.md
   - context/architecture.md
-  - context/decisions.md
 
 rules:
   - rules/coding.md
