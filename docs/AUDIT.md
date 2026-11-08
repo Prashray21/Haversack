@@ -1,5 +1,13 @@
 # MVP Audit — 2026-11-07
 
+## 2026-11-08 — P3 mid-phase (P3.1 wiring + P3.2 screens)
+
+- Identity: owner confirmed **Haversack** → single `APP_IDENTITY` constant (`apps/desktop/src/shared/identity.ts`), appId `io.github.prashray21.haversack`.
+- P3.1 (`a358b0f` + fix `04cf3da`): Electron 45.2.3 + electron-builder 26.18.0 + @electron/fuses 2.1.3 + vite 8.3.6 + React 19.3.1 — exact ADR 001 §13 pins (supabase-js deferred to P5). Sandboxed renderer, `app://` protocol serving only `dist/renderer` with the full CSP from ADR §5, fixed zod-validated IPC with sender-frame check, utility-process engine (hard kill on timeout), no crashReporter/telemetry. One CI failure self-inflicted (core inventory module committed late) — fixed same day, CI green.
+- Audit findings at install (recorded per ADR §13): `pnpm audit` = **1 moderate** — minimatch GHSA-g3hv-75wg-m249, ALL paths inside electron-builder's build tooling (dev-only, never ships in the app bundle). Accepted as residual; flagged to owner. `electron-winstaller` (transitive of electron-builder's Squirrel target, which this project never builds) needed an allowBuilds entry — its install script is a local 7z-arch selector (verified from the npm registry scripts field; no network fetch).
+- P3.2 (`95c3ef7`): local-mode screens per PRD L1–L7; secret values via safeStorage store FAIL-CLOSED (unavailable ⇒ memory-only this run, UI states it); values never sent to the renderer (main injects them into plan.mcp for user scope only); MCP connection test shows the exact command in an approval dialog EVERY run.
+- Verification: `pnpm typecheck` (desktop, two tsconfigs) exit 0; `pnpm build` exit 0; `HAVERSACK_SMOKE=1 electron .` → `SMOKE_OK {"product":"Haversack","appVersion":"0.2.0-alpha.0","engine":"utility-process"}`; core 178 + cli 58+1skip tests green; CI runs 42460775131, 42461555420 success.
+
 ## 2026-11-08 — P2 engine extension complete (gate posted)
 
 - P1: ADR 003 (`docs/adr/003-targets-and-install-mechanics.md`, commit `115db5e`) approved by owner.
