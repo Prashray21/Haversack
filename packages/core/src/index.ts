@@ -12,6 +12,7 @@ export { CURSOR_MDC_PATH, LEGACY_CURSOR_MDC_PATH, cursorAdapter } from "./adapte
 export * from "./drift/manifest.js";
 export * from "./drift/detect.js";
 export * from "./secrets/scan.js";
+export * from "./library/item.js";
 export * from "./checks/types.js";
 export * from "./checks/glob.js";
 export * from "./checks/hash.js";
